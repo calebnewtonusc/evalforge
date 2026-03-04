@@ -18,15 +18,12 @@ Usage:
 from __future__ import annotations
 
 import json
-import math
 import os
 import random
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from loguru import logger
-from scipy.stats import pearsonr, kendalltau
 
 
 class ForgeQualityBench:
@@ -49,6 +46,7 @@ class ForgeQualityBench:
 
         if model_url:
             import openai
+
             self._client = openai.OpenAI(
                 base_url=f"{model_url}/v1",
                 api_key=os.environ.get("VLLM_API_KEY", "dummy"),
@@ -95,8 +93,12 @@ class ForgeQualityBench:
             )
             inputs = self._tokenizer(text, return_tensors="pt").to(self._model.device)
             with torch.no_grad():
-                output = self._model.generate(**inputs, max_new_tokens=max_tokens, do_sample=False)
-            return self._tokenizer.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+                output = self._model.generate(
+                    **inputs, max_new_tokens=max_tokens, do_sample=False
+                )
+            return self._tokenizer.decode(
+                output[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True
+            )
 
     def run_all(self) -> dict[str, float]:
         """Run all ForgeQualityBench test suites."""
@@ -117,7 +119,9 @@ class ForgeQualityBench:
         results["item_diversity_self_bleu"] = self.eval_item_diversity()
 
         logger.info("  Suite 5: Goodhart Pattern Classification...")
-        results["goodhart_classification_accuracy"] = self.eval_goodhart_classification()
+        results["goodhart_classification_accuracy"] = (
+            self.eval_goodhart_classification()
+        )
 
         # Composite score (weighted average)
         weights = {
@@ -131,13 +135,17 @@ class ForgeQualityBench:
         composite = (
             weights["shortcut_detection_recall"] * results["shortcut_detection_recall"]
             + weights["contamination_precision"] * results["contamination_precision"]
-            + weights["irt_calibration_mse"] * (1.0 - min(1.0, results["irt_calibration_mse"]))
+            + weights["irt_calibration_mse"]
+            * (1.0 - min(1.0, results["irt_calibration_mse"]))
             + weights["item_diversity_self_bleu"] * results["item_diversity_self_bleu"]
-            + weights["goodhart_classification_accuracy"] * results["goodhart_classification_accuracy"]
+            + weights["goodhart_classification_accuracy"]
+            * results["goodhart_classification_accuracy"]
         )
         results["composite_forge_quality_score"] = round(composite, 4)
 
-        logger.info(f"ForgeQuality composite score: {results['composite_forge_quality_score']:.4f}")
+        logger.info(
+            f"ForgeQuality composite score: {results['composite_forge_quality_score']:.4f}"
+        )
         return results
 
     def eval_shortcut_detection(self, n_tests: int = 100) -> float:
@@ -169,11 +177,15 @@ class ForgeQualityBench:
             planted_type = item_data["contamination_type"]
             report = detector.analyze_item(item)
             detected_patterns = {s["pattern"] for s in report.shortcuts}
-            if planted_type in detected_patterns or self._llm_detects(item, planted_type):
+            if planted_type in detected_patterns or self._llm_detects(
+                item, planted_type
+            ):
                 detected += 1
 
         recall = detected / len(contaminated)
-        logger.info(f"  Shortcut detection: {detected}/{len(contaminated)} = {recall:.3f}")
+        logger.info(
+            f"  Shortcut detection: {detected}/{len(contaminated)} = {recall:.3f}"
+        )
         return round(recall, 4)
 
     def eval_contamination_precision(self, n_tests: int = 100) -> float:
@@ -247,10 +259,14 @@ class ForgeQualityBench:
 
         # Compute MSE between true and estimated b values
         estimated_b = {ip.item_id: ip.difficulty_b for ip in result.item_parameters}
-        mse = float(np.mean([
-            (estimated_b[f"item_{j}"] - true_b_values[j])**2
-            for j in range(n_items)
-        ]))
+        mse = float(
+            np.mean(
+                [
+                    (estimated_b[f"item_{j}"] - true_b_values[j]) ** 2
+                    for j in range(n_items)
+                ]
+            )
+        )
 
         logger.info(f"  IRT calibration MSE: {mse:.4f}")
         return round(mse, 4)
@@ -320,13 +336,18 @@ class ForgeQualityBench:
                     max_tokens=50,
                 ).strip()
                 # Check if the correct pattern appears in the response
-                if test["true_pattern"] in response or test["true_pattern"].split("_")[0] in response:
+                if (
+                    test["true_pattern"] in response
+                    or test["true_pattern"].split("_")[0] in response
+                ):
                     correct += 1
             except Exception as e:
                 logger.debug(f"Goodhart classification failed: {e}")
 
         accuracy = correct / len(test_cases) if test_cases else 0.0
-        logger.info(f"  Goodhart classification: {correct}/{len(test_cases)} = {accuracy:.3f}")
+        logger.info(
+            f"  Goodhart classification: {correct}/{len(test_cases)} = {accuracy:.3f}"
+        )
         return round(accuracy, 4)
 
     # --- Helpers ---
@@ -345,13 +366,15 @@ class ForgeQualityBench:
                 "D": f"Option D for item {i}: this is the last option",
             }
             answer_key = random.choice(["A", "B", "C", "D"])
-            items.append({
-                "id": f"synthetic_{i}",
-                "question": f"Given {construct} scenario {i}, what is the most likely outcome?",
-                "choices": choices,
-                "answer": answer_key,
-                "construct": construct,
-            })
+            items.append(
+                {
+                    "id": f"synthetic_{i}",
+                    "question": f"Given {construct} scenario {i}, what is the most likely outcome?",
+                    "choices": choices,
+                    "answer": answer_key,
+                    "construct": construct,
+                }
+            )
         return items
 
     def _llm_detects(self, item: dict, planted_type: str) -> bool:
@@ -363,7 +386,9 @@ class ForgeQualityBench:
                 "Answer YES or NO:"
             )
             response = self._infer(
-                system="You are a benchmark quality checker.", user=prompt, max_tokens=10
+                system="You are a benchmark quality checker.",
+                user=prompt,
+                max_tokens=10,
             )
             return "YES" in response.upper()
         except Exception:
@@ -387,6 +412,7 @@ class ForgeQualityBench:
     @staticmethod
     def _compute_self_bleu(candidate: str, references: list[str]) -> float:
         """Compute average bigram BLEU between candidate and references."""
+
         def bigrams(text: str) -> set[tuple[str, ...]]:
             words = text.lower().split()
             return set(zip(words, words[1:]))

@@ -31,9 +31,8 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     TrainerCallback,
-    TrainingArguments,
 )
-from trl import SFTTrainer
+from trl import SFTConfig, SFTTrainer
 
 
 def load_sharegpt_dataset(jsonl_path: str) -> Dataset:
@@ -96,8 +95,13 @@ def build_lora_config(lora_r: int = 64) -> LoraConfig:
         r=lora_r,
         lora_alpha=lora_r * 2,  # alpha/r = 2x
         target_modules=[
-            "q_proj", "k_proj", "v_proj", "o_proj",
-            "gate_proj", "up_proj", "down_proj",
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
         ],
         lora_dropout=0.05,
         bias="none",
@@ -110,7 +114,9 @@ def main() -> None:
     parser.add_argument("--data-dir", default="data/train")
     parser.add_argument("--output-dir", default="checkpoints/evalforge-sft")
     parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--batch-size", type=int, default=4, help="Per-device batch size")
+    parser.add_argument(
+        "--batch-size", type=int, default=4, help="Per-device batch size"
+    )
     parser.add_argument("--grad-accum", type=int, default=4)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--max-length", type=int, default=4096)
@@ -125,7 +131,9 @@ def main() -> None:
     val_file = data_dir / "evalforge_val.jsonl"
 
     if not train_file.exists():
-        logger.error(f"Training file not found: {train_file}. Run pipeline.py --stage synthesis first.")
+        logger.error(
+            f"Training file not found: {train_file}. Run pipeline.py --stage synthesis first."
+        )
         return
 
     logger.info(f"Loading base model: {args.model}")
@@ -150,7 +158,9 @@ def main() -> None:
     # Load datasets
     logger.info("Loading datasets...")
     train_ds = load_sharegpt_dataset(str(train_file))
-    val_ds = load_sharegpt_dataset(str(val_file)) if val_file.exists() else None
+    val_ds_raw = load_sharegpt_dataset(str(val_file)) if val_file.exists() else None
+    # Treat a 0-byte / empty JSONL as no validation set to avoid trainer errors
+    val_ds = val_ds_raw if (val_ds_raw is not None and len(val_ds_raw) > 0) else None
 
     train_ds = train_ds.map(lambda ex: format_to_text(ex, tokenizer))
     if val_ds:
@@ -161,11 +171,19 @@ def main() -> None:
     steps_per_epoch = math.ceil(len(train_ds) / effective_batch)
     total_steps = steps_per_epoch * args.epochs
 
-    logger.info(f"GPUs: {n_gpus} | Effective batch: {effective_batch} | Total steps: {total_steps:,}")
-    logger.info(f"Train size: {len(train_ds):,} | Val size: {len(val_ds) if val_ds else 0:,}")
+    logger.info(
+        f"GPUs: {n_gpus} | Effective batch: {effective_batch} | Total steps: {total_steps:,}"
+    )
+    logger.info(
+        f"Train size: {len(train_ds):,} | Val size: {len(val_ds) if val_ds else 0:,}"
+    )
 
     report_to = "wandb" if os.environ.get("WANDB_API_KEY") else "none"
-    training_args = TrainingArguments(
+    # Use SFTConfig (subclass of TrainingArguments) so that SFT-specific
+    # parameters like max_seq_length and dataset_text_field are passed through
+    # the config object rather than the SFTTrainer constructor (which no longer
+    # accepts them as top-level kwargs in recent TRL versions).
+    training_args = SFTConfig(
         output_dir=args.output_dir,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
@@ -192,6 +210,8 @@ def main() -> None:
         remove_unused_columns=False,
         deepspeed=args.deepspeed,
         ddp_find_unused_parameters=False,
+        max_seq_length=args.max_length,
+        dataset_text_field="text",
     )
 
     trainer = SFTTrainer(
@@ -200,8 +220,6 @@ def main() -> None:
         args=training_args,
         train_dataset=train_ds,
         eval_dataset=val_ds,
-        dataset_text_field="text",
-        max_seq_length=args.max_length,
         callbacks=[LogMetricsCallback()],
     )
 

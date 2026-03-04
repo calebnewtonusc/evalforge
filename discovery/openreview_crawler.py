@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -25,14 +26,22 @@ from loguru import logger
 
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential
+
     HAS_TENACITY = True
 except ImportError:
     HAS_TENACITY = False
+
     def retry(*args, **kwargs):
-        def decorator(fn): return fn
+        def decorator(fn):
+            return fn
+
         return decorator
-    def stop_after_attempt(n): return None
-    def wait_exponential(**kwargs): return None
+
+    def stop_after_attempt(n):
+        return None
+
+    def wait_exponential(**kwargs):
+        return None
 
 
 OPENREVIEW_API_V2 = "https://api2.openreview.net"
@@ -46,9 +55,18 @@ VENUE_IDS: dict[str, list[str]] = {
 }
 
 EVAL_QUERY_TERMS = [
-    "benchmark", "evaluation", "contamination", "shortcut", "construct validity",
-    "annotation artifact", "Goodhart", "leakage", "data contamination",
-    "benchmark gaming", "memorization", "item response theory",
+    "benchmark",
+    "evaluation",
+    "contamination",
+    "shortcut",
+    "construct validity",
+    "annotation artifact",
+    "Goodhart",
+    "leakage",
+    "data contamination",
+    "benchmark gaming",
+    "memorization",
+    "item response theory",
 ]
 
 
@@ -62,11 +80,15 @@ class OpenReviewCrawler:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "EvalForge-Crawler/1.0 (research)"})
 
-    @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=30))
+    @retry(
+        stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=30)
+    )
     def _get(self, endpoint: str, params: dict[str, Any] | None = None) -> dict:
         """Make a rate-limited GET request to OpenReview API."""
         time.sleep(self.rate_limit)
-        resp = self.session.get(f"{OPENREVIEW_API_V2}{endpoint}", params=params or {}, timeout=30)
+        resp = self.session.get(
+            f"{OPENREVIEW_API_V2}{endpoint}", params=params or {}, timeout=30
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -101,7 +123,12 @@ class OpenReviewCrawler:
                 continue
 
             for venue_id in VENUE_IDS[venue_name]:
-                year = int(venue_id.split("/")[1]) if "/" in venue_id else 0
+                # Use regex to extract the 4-digit year from venue IDs like
+                # "NeurIPS.cc/2023", "aclweb.org/ACL/2023/Conference", etc.
+                # int(venue_id.split("/")[1]) raises ValueError for ACL/EMNLP
+                # paths where split("/")[1] is "ACL" not the year.
+                _year_match = re.search(r"/(\d{4})(?:/|$)", venue_id)
+                year = int(_year_match.group(1)) if _year_match else 0
                 if year < since_year:
                     continue
                 logger.info(f"Crawling {venue_id}...")
@@ -210,13 +237,17 @@ class OpenReviewCrawler:
             "abstract": _val(content.get("abstract", "")),
             "keywords": _val(content.get("keywords", "")),
             "venue": note.get("venue", ""),
-            "year": datetime.utcfromtimestamp(note.get("cdate", 0) / 1000).year if note.get("cdate") else 0,
+            "year": datetime.utcfromtimestamp(note.get("cdate", 0) / 1000).year
+            if note.get("cdate")
+            else 0,
             "reviews": [],
             "rebuttals": [],
         }
 
         try:
-            reviews_result = self._get("/notes", params={"replyto": note_id, "limit": 50})
+            reviews_result = self._get(
+                "/notes", params={"replyto": note_id, "limit": 50}
+            )
             for review_note in reviews_result.get("notes", []):
                 review_content = review_note.get("content", {})
                 review_text = _val(review_content.get("review", "")) or _val(

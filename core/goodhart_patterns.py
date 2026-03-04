@@ -13,16 +13,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
 
 
 class PatternCategory(str, Enum):
-    SURFACE = "surface"              # Exploits surface-level features
-    DISTRIBUTIONAL = "distributional"  # Exploits statistical distribution of training data
-    STRUCTURAL = "structural"        # Exploits test format/structure
-    SEMANTIC = "semantic"            # Exploits semantic shortcuts
-    TEMPORAL = "temporal"            # Exploits temporal leakage
-    SYSTEMIC = "systemic"           # Exploits system-level measurement failures
+    SURFACE = "surface"  # Exploits surface-level features
+    DISTRIBUTIONAL = (
+        "distributional"  # Exploits statistical distribution of training data
+    )
+    STRUCTURAL = "structural"  # Exploits test format/structure
+    SEMANTIC = "semantic"  # Exploits semantic shortcuts
+    TEMPORAL = "temporal"  # Exploits temporal leakage
+    SYSTEMIC = "systemic"  # Exploits system-level measurement failures
 
 
 @dataclass
@@ -75,7 +76,6 @@ PATTERNS: dict[str, GoodhartPattern] = {
         ),
         references=["Ko et al. 2020: Length Bias in Question Answering"],
     ),
-
     "G02_lexical_overlap": GoodhartPattern(
         id="G02_lexical_overlap",
         category=PatternCategory.SURFACE,
@@ -103,9 +103,10 @@ PATTERNS: dict[str, GoodhartPattern] = {
             "A TF-IDF classifier trained only on choice text achieves > 60% accuracy",
         ],
         mitigation="Screen generated items with `ShortcutDetector._check_lexical_overlap()`",
-        references=["Gururangan et al. 2018: Annotation Artifacts in Natural Language Inference Data"],
+        references=[
+            "Gururangan et al. 2018: Annotation Artifacts in Natural Language Inference Data"
+        ],
     ),
-
     "G03_negation_artifact": GoodhartPattern(
         id="G03_negation_artifact",
         category=PatternCategory.SURFACE,
@@ -128,9 +129,10 @@ PATTERNS: dict[str, GoodhartPattern] = {
             "Correct answer contains negation at 2× the rate of distractors",
         ],
         mitigation="Balance negation distribution across correct and distractor choices.",
-        references=["Kassner & Schütze 2020: Negated and Misprimed Probes for Pretrained LMs"],
+        references=[
+            "Kassner & Schütze 2020: Negated and Misprimed Probes for Pretrained LMs"
+        ],
     ),
-
     "G04_position_bias": GoodhartPattern(
         id="G04_position_bias",
         category=PatternCategory.STRUCTURAL,
@@ -159,7 +161,6 @@ PATTERNS: dict[str, GoodhartPattern] = {
         mitigation="Shuffle answer position after generation; ensure uniform correct-answer distribution.",
         references=["Ko et al. 2020: Position Bias in Question Answering"],
     ),
-
     # --- DISTRIBUTIONAL PATTERNS ---
     "G05_ngram_contamination": GoodhartPattern(
         id="G05_ngram_contamination",
@@ -186,9 +187,10 @@ PATTERNS: dict[str, GoodhartPattern] = {
             "Filter item generation to avoid n-grams present in any known pretraining corpus. "
             "Use EvalForge's contamination prober during item construction."
         ),
-        references=["Shi et al. 2023: Detecting Pretraining Data from Large Language Models"],
+        references=[
+            "Shi et al. 2023: Detecting Pretraining Data from Large Language Models"
+        ],
     ),
-
     "G06_frequency_prior": GoodhartPattern(
         id="G06_frequency_prior",
         category=PatternCategory.DISTRIBUTIONAL,
@@ -211,9 +213,10 @@ PATTERNS: dict[str, GoodhartPattern] = {
             "Answer choice text contains domain-specific keywords that are always correct",
         ],
         mitigation="Balance answer choice label frequencies during dataset construction.",
-        references=["Gururangan et al. 2018: Annotation Artifacts in Natural Language Inference Data"],
+        references=[
+            "Gururangan et al. 2018: Annotation Artifacts in Natural Language Inference Data"
+        ],
     ),
-
     # --- SEMANTIC PATTERNS ---
     "G07_semantic_collapse": GoodhartPattern(
         id="G07_semantic_collapse",
@@ -240,7 +243,6 @@ PATTERNS: dict[str, GoodhartPattern] = {
         mitigation="Enforce semantic diversity: all choices must have pairwise cosine < 0.70.",
         references=["Swaminathan et al. 2020: Perturbation CheckLists for NLI"],
     ),
-
     "G08_distractor_implausibility": GoodhartPattern(
         id="G08_distractor_implausibility",
         category=PatternCategory.SEMANTIC,
@@ -269,7 +271,6 @@ PATTERNS: dict[str, GoodhartPattern] = {
         mitigation="Require each distractor to be selected by at least 10% of human test-takers.",
         references=["Haley & Stasio 2005: Test Construction Guidelines (adapted)"],
     ),
-
     # --- STRUCTURAL PATTERNS ---
     "G09_template_fill": GoodhartPattern(
         id="G09_template_fill",
@@ -296,7 +297,6 @@ PATTERNS: dict[str, GoodhartPattern] = {
         mitigation="Constrain item generation to avoid repeated syntactic templates.",
         references=["Petroni et al. 2019: Language Models as Knowledge Bases?"],
     ),
-
     "G10_annotation_agreement": GoodhartPattern(
         id="G10_annotation_agreement",
         category=PatternCategory.DISTRIBUTIONAL,
@@ -322,9 +322,10 @@ PATTERNS: dict[str, GoodhartPattern] = {
             "Include items across the full agreement spectrum. "
             "Weight low-agreement items more heavily in scoring."
         ),
-        references=["Nie et al. 2020: Adversarial NLI: A New Benchmark for Natural Language Understanding"],
+        references=[
+            "Nie et al. 2020: Adversarial NLI: A New Benchmark for Natural Language Understanding"
+        ],
     ),
-
     # --- SYSTEMIC PATTERNS ---
     "G11_benchmark_saturation": GoodhartPattern(
         id="G11_benchmark_saturation",
@@ -349,9 +350,10 @@ PATTERNS: dict[str, GoodhartPattern] = {
             "Kendall tau of model rankings across two benchmark variants < 0.6",
         ],
         mitigation="Trigger automatic benchmark refresh when ranking stability drops below threshold.",
-        references=["Raji et al. 2021: AI and the Everything in the Whole Wide World Benchmark"],
+        references=[
+            "Raji et al. 2021: AI and the Everything in the Whole Wide World Benchmark"
+        ],
     ),
-
     "G12_measurement_drift": GoodhartPattern(
         id="G12_measurement_drift",
         category=PatternCategory.TEMPORAL,
@@ -381,34 +383,80 @@ PATTERNS: dict[str, GoodhartPattern] = {
             "Continuously refresh benchmark items. "
             "Track downstream correlation as a first-class metric."
         ),
-        references=["Raji et al. 2021: AI and the Everything in the Whole Wide World Benchmark"],
+        references=[
+            "Raji et al. 2021: AI and the Everything in the Whole Wide World Benchmark"
+        ],
     ),
 }
 
 # Add remaining patterns (13–23) with abbreviated entries
 _ADDITIONAL_PATTERNS = [
-    ("G13_cherry_picking", "Cherry-Picking", PatternCategory.SYSTEMIC,
-     "Selective reporting of benchmark subsets where model performs best."),
-    ("G14_calibration_gaming", "Calibration Gaming", PatternCategory.DISTRIBUTIONAL,
-     "Optimizing for calibration metrics (ECE) without improving accuracy."),
-    ("G15_contamination_paraphrase", "Paraphrastic Contamination", PatternCategory.TEMPORAL,
-     "Training data contains paraphrases of benchmark items — embedding-level overlap."),
-    ("G16_metric_hacking", "Metric Hacking", PatternCategory.STRUCTURAL,
-     "Direct optimization of benchmark-specific patterns (e.g., BLEU-optimized generation)."),
-    ("G17_context_length_shortcut", "Context Length Shortcut", PatternCategory.SURFACE,
-     "Long-context tasks solvable by attending to first/last sentence only."),
-    ("G18_format_memorization", "Format Memorization", PatternCategory.STRUCTURAL,
-     "Models memorize the output format expected by evaluator, not the underlying task."),
-    ("G19_distractor_generation_bias", "Distractor Generation Bias", PatternCategory.DISTRIBUTIONAL,
-     "LLM-generated distractors share distributional properties of LLM training data."),
-    ("G20_adversarial_blindspot", "Adversarial Blind Spot", PatternCategory.SEMANTIC,
-     "Benchmark items are drawn from a narrow adversarial distribution not representative of real use."),
-    ("G21_language_style_bias", "Language Style Bias", PatternCategory.SURFACE,
-     "Models prefer certain writing styles (formal, bullet-pointed) regardless of correctness."),
-    ("G22_multihop_shortcut", "Multi-hop Shortcut", PatternCategory.SEMANTIC,
-     "Multi-hop reasoning tasks solvable by single-hop patterns on bridge entities."),
-    ("G23_evaluation_reward_hacking", "Evaluation Reward Hacking", PatternCategory.SYSTEMIC,
-     "RLHF models learn to produce outputs that score well on the specific evaluator, not on the task."),
+    (
+        "G13_cherry_picking",
+        "Cherry-Picking",
+        PatternCategory.SYSTEMIC,
+        "Selective reporting of benchmark subsets where model performs best.",
+    ),
+    (
+        "G14_calibration_gaming",
+        "Calibration Gaming",
+        PatternCategory.DISTRIBUTIONAL,
+        "Optimizing for calibration metrics (ECE) without improving accuracy.",
+    ),
+    (
+        "G15_contamination_paraphrase",
+        "Paraphrastic Contamination",
+        PatternCategory.TEMPORAL,
+        "Training data contains paraphrases of benchmark items — embedding-level overlap.",
+    ),
+    (
+        "G16_metric_hacking",
+        "Metric Hacking",
+        PatternCategory.STRUCTURAL,
+        "Direct optimization of benchmark-specific patterns (e.g., BLEU-optimized generation).",
+    ),
+    (
+        "G17_context_length_shortcut",
+        "Context Length Shortcut",
+        PatternCategory.SURFACE,
+        "Long-context tasks solvable by attending to first/last sentence only.",
+    ),
+    (
+        "G18_format_memorization",
+        "Format Memorization",
+        PatternCategory.STRUCTURAL,
+        "Models memorize the output format expected by evaluator, not the underlying task.",
+    ),
+    (
+        "G19_distractor_generation_bias",
+        "Distractor Generation Bias",
+        PatternCategory.DISTRIBUTIONAL,
+        "LLM-generated distractors share distributional properties of LLM training data.",
+    ),
+    (
+        "G20_adversarial_blindspot",
+        "Adversarial Blind Spot",
+        PatternCategory.SEMANTIC,
+        "Benchmark items are drawn from a narrow adversarial distribution not representative of real use.",
+    ),
+    (
+        "G21_language_style_bias",
+        "Language Style Bias",
+        PatternCategory.SURFACE,
+        "Models prefer certain writing styles (formal, bullet-pointed) regardless of correctness.",
+    ),
+    (
+        "G22_multihop_shortcut",
+        "Multi-hop Shortcut",
+        PatternCategory.SEMANTIC,
+        "Multi-hop reasoning tasks solvable by single-hop patterns on bridge entities.",
+    ),
+    (
+        "G23_evaluation_reward_hacking",
+        "Evaluation Reward Hacking",
+        PatternCategory.SYSTEMIC,
+        "RLHF models learn to produce outputs that score well on the specific evaluator, not on the task.",
+    ),
 ]
 
 for pattern_id, name, category, desc in _ADDITIONAL_PATTERNS:

@@ -15,11 +15,9 @@ Usage:
 from __future__ import annotations
 
 import json
-import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from loguru import logger
@@ -32,7 +30,7 @@ class CorrelationRecord:
 
     timestamp: str
     benchmark: str
-    model_scores: dict[str, float]       # model_name → benchmark score
+    model_scores: dict[str, float]  # model_name → benchmark score
     downstream_scores: dict[str, float]  # model_name → downstream performance
     pearson_r: float
     spearman_rho: float
@@ -150,7 +148,7 @@ class CorrelationTrackerAgent:
             y = np.array(pearson_values, dtype=float)
             A = np.vstack([x, np.ones_like(x)]).T
             result = np.linalg.lstsq(A, y, rcond=None)
-            trend_slope = float(result[0][0])
+            trend_slope = float(result[0][0]) if len(result[0]) > 0 else 0.0
 
         if trend_slope < self.ALERT_SLOPE_THRESHOLD:
             trend = "DEGRADING"
@@ -170,7 +168,9 @@ class CorrelationTrackerAgent:
             alert_reason = f"Kendall tau ({latest.kendall_tau:.3f}) below threshold ({self.ALERT_THRESHOLD_TAU})"
         elif trend_slope < self.ALERT_SLOPE_THRESHOLD:
             alert = True
-            alert_reason = f"Pearson r declining at {trend_slope:.3f}/period — benchmark degrading"
+            alert_reason = (
+                f"Pearson r declining at {trend_slope:.3f}/period — benchmark degrading"
+            )
 
         return CorrelationReport(
             benchmark=benchmark,

@@ -22,21 +22,19 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 from pathlib import Path
-from typing import Any
 
-import torch
 from datasets import Dataset
 from loguru import logger
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 
 
 # ---------------------------------------------------------------------------
 # Reward computation
 # ---------------------------------------------------------------------------
+
 
 def compute_shortcut_reward(response: str, ground_truth: dict) -> float:
     """
@@ -59,11 +57,11 @@ def compute_shortcut_reward(response: str, ground_truth: dict) -> float:
         # Strip markdown fences
         text = response.strip()
         if text.startswith("```"):
-            lines = text.split('\n')
+            lines = text.split("\n")
             # Strip opening/closing fence lines
-            if lines and lines[0].strip().startswith('```'):
+            if lines and lines[0].strip().startswith("```"):
                 lines = lines[1:]
-            if lines and lines[-1].strip() == '```':
+            if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
             text = "\n".join(lines)
         data = json.loads(text)
@@ -96,11 +94,11 @@ def compute_format_reward(response: str) -> float:
     """
     text = response.strip()
     if text.startswith("```"):
-        lines = text.split('\n')
+        lines = text.split("\n")
         # Strip opening/closing fence lines
-        if lines and lines[0].strip().startswith('```'):
+        if lines and lines[0].strip().startswith("```"):
             lines = lines[1:]
-        if lines and lines[-1].strip() == '```':
+        if lines and lines[-1].strip() == "```":
             lines = lines[:-1]
         text = "\n".join(lines)
     try:
@@ -144,6 +142,7 @@ def compute_reward(
 # Data loading
 # ---------------------------------------------------------------------------
 
+
 def load_rl_dataset(data_dir: Path) -> Dataset:
     """
     Load dataset for GRPO training.
@@ -166,16 +165,22 @@ def load_rl_dataset(data_dir: Path) -> Dataset:
                 if "conversations" not in pair:
                     continue
                 conversations = pair.get("conversations", [])
-                system_msg = next((c["value"] for c in conversations if c["from"] == "system"), "")
-                user_msg = next((c["value"] for c in conversations if c["from"] == "human"), "")
+                system_msg = next(
+                    (c["value"] for c in conversations if c["from"] == "system"), ""
+                )
+                user_msg = next(
+                    (c["value"] for c in conversations if c["from"] == "human"), ""
+                )
                 prompt = f"<|im_start|>system\n{system_msg}<|im_end|>\n<|im_start|>user\n{user_msg}<|im_end|>\n<|im_start|>assistant\n"
-                records.append({
-                    "prompt": prompt,
-                    "ground_truth": {
-                        "shortcuts_planted": pair.get("shortcuts_planted", []),
-                        "type": pair.get("type", "shortcut_detection"),
-                    },
-                })
+                records.append(
+                    {
+                        "prompt": prompt,
+                        "ground_truth": {
+                            "shortcuts_planted": pair.get("shortcuts_planted", []),
+                            "type": pair.get("type", "shortcut_detection"),
+                        },
+                    }
+                )
             except (json.JSONDecodeError, KeyError):
                 pass
 
@@ -187,37 +192,47 @@ def load_rl_dataset(data_dir: Path) -> Dataset:
 # Reward function wrapper for TRL
 # ---------------------------------------------------------------------------
 
-def reward_fn(prompts: list[str], completions: list[str], **kwargs) -> list[float]:
+
+def reward_fn(
+    prompts: list[str], completions: list[list[str]], **kwargs
+) -> list[float]:
     """
     TRL-compatible reward function.
 
+    GRPOTrainer passes completions as list[list[str]] — one inner list per prompt,
+    containing num_generations completions. ground_truth is one entry per prompt
+    and must be expanded to match the flattened completions.
+
     Args:
-        prompts: List of input prompts.
-        completions: List of model completions.
+        prompts: List of input prompts (one per group).
+        completions: List of lists of model completions (one list per prompt).
         **kwargs: Passed by TRL, includes metadata columns.
 
     Returns:
-        List of scalar rewards.
+        List of scalar rewards, one per completion (len = n_prompts * num_generations).
     """
     ground_truths = kwargs.get("ground_truth")
     if not ground_truths:
         # No ground truth available — return penalty to avoid reward poisoning
-        return [-1.0] * len(completions)
+        total = sum(len(group) for group in completions)
+        return [-1.0] * total
+
     rewards = []
-    for completions_batch, gt in zip(completions, ground_truths):
-        text = completions_batch[0] if completions_batch else ""
-        rewards.append(compute_reward(text, gt))
-    # Guard: when all rewards in a GRPO group are identical, std=0 causes NaN
-    # gradients during advantage normalization. Return a uniform penalty instead
-    # so the update is a clean no-op rather than producing NaN parameters.
-    if len(set(rewards)) == 1:
-        return [-1.0] * len(rewards)
+    # Per-group degenerate-reward guard: check each prompt's group independently
+    for group_completions, gt in zip(completions, ground_truths):
+        group_rewards = [compute_reward(text, gt) for text in group_completions]
+        # If all rewards in this GRPO group are identical, std=0 → NaN gradients.
+        # Replace with uniform penalty so the update is a clean no-op.
+        if len(set(group_rewards)) == 1:
+            group_rewards = [-1.0] * len(group_rewards)
+        rewards.extend(group_rewards)
     return rewards
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EvalForge Stage 2: GRPO RL training")

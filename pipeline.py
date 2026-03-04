@@ -45,16 +45,24 @@ for d in [RAW_DIR, PROCESSED_DIR, TRAIN_DIR, CHECKPOINTS_DIR]:
 # Stage runners
 # ---------------------------------------------------------------------------
 
+
 def stage_discovery(args: argparse.Namespace) -> None:
     """Crawl OpenReview papers and benchmark corpora."""
     logger.info("=== STAGE: DISCOVERY ===")
 
     logger.info("Crawling OpenReview evaluation papers...")
     from discovery.openreview_crawler import OpenReviewCrawler
+
     crawler = OpenReviewCrawler(output_dir=RAW_DIR / "openreview")
     n_papers = crawler.run(
         venues=["NeurIPS", "ICLR", "ICML", "ACL", "EMNLP"],
-        query_terms=["benchmark", "evaluation", "contamination", "shortcut", "construct validity"],
+        query_terms=[
+            "benchmark",
+            "evaluation",
+            "contamination",
+            "shortcut",
+            "construct validity",
+        ],
         max_papers=50_000,
         since_year=2018,
     )
@@ -62,8 +70,19 @@ def stage_discovery(args: argparse.Namespace) -> None:
 
     logger.info("Indexing benchmark corpora...")
     from discovery.benchmark_corpus import BenchmarkCorpusIndexer
+
     indexer = BenchmarkCorpusIndexer(output_dir=RAW_DIR / "benchmarks")
-    indexer.run(benchmarks=["bigbench", "helm", "mmlu", "superglue", "gsm8k", "humaneval", "math"])
+    indexer.run(
+        benchmarks=[
+            "bigbench",
+            "helm",
+            "mmlu",
+            "superglue",
+            "gsm8k",
+            "humaneval",
+            "math",
+        ]
+    )
     logger.info("Benchmark corpus indexed")
 
 
@@ -75,13 +94,17 @@ def stage_synthesis(args: argparse.Namespace) -> None:
     vllm_urls = None
     if backend == "vllm":
         import os
-        urls_str = os.environ.get("VLLM_URLS", "http://localhost:8001,http://localhost:8002")
+
+        urls_str = os.environ.get(
+            "VLLM_URLS", "http://localhost:8001,http://localhost:8002"
+        )
         vllm_urls = [u.strip() for u in urls_str.split(",")]
         logger.info(f"Using vLLM backend: {vllm_urls}")
     else:
         logger.info("Using Claude API backend (slower, no GPU required)")
 
     from synthesis.synthesize_bulk import BulkSynthesizer
+
     synthesizer = BulkSynthesizer(
         raw_dir=RAW_DIR,
         output_dir=PROCESSED_DIR,
@@ -106,6 +129,7 @@ def _merge_and_split() -> None:
     """Merge all processed JSONL files, deduplicate, and create train/val/test splits."""
     try:
         from datasketch import MinHash, MinHashLSH
+
         HAS_DATASKETCH = True
     except ImportError:
         HAS_DATASKETCH = False
@@ -137,10 +161,14 @@ def _merge_and_split() -> None:
                 lsh.insert(key, m)
                 deduped.append(pair)
     else:
-        logger.warning("datasketch not available — skipping MinHash dedup, using all pairs")
+        logger.warning(
+            "datasketch not available — skipping MinHash dedup, using all pairs"
+        )
         deduped = all_pairs
 
-    logger.info(f"Pairs after dedup: {len(deduped):,} ({len(all_pairs) - len(deduped):,} removed)")
+    logger.info(
+        f"Pairs after dedup: {len(deduped):,} ({len(all_pairs) - len(deduped):,} removed)"
+    )
 
     # Shuffle and split 90/5/5 with a fixed seed for reproducibility.
     random.seed(42)
@@ -157,8 +185,8 @@ def _merge_and_split() -> None:
 
     splits = {
         "train": deduped[:n_train],
-        "val": deduped[n_train:n_train + n_val],
-        "test": deduped[n_train + n_val:],
+        "val": deduped[n_train : n_train + n_val],
+        "test": deduped[n_train + n_val :],
     }
 
     for split_name, pairs in splits.items():
@@ -175,29 +203,43 @@ def stage_train(args: argparse.Namespace) -> None:
     logger.info("=== STAGE: TRAINING ===")
 
     sft_checkpoint = CHECKPOINTS_DIR / "evalforge-sft"
+    # The SFT trainer merges LoRA weights and saves the final model under
+    # sft_checkpoint/final — use that path for existence checks and for
+    # passing to downstream stages.
+    sft_final = sft_checkpoint / "final"
     rl_checkpoint = CHECKPOINTS_DIR / "evalforge-rl"
     final_checkpoint = CHECKPOINTS_DIR / "evalforge-final"
 
     # Stage 1: SFT
-    if not (sft_checkpoint / "config.json").exists():
+    if not (sft_final / "config.json").exists():
         logger.info("--- Stage 1: SFT ---")
         _run_deepspeed(
             script="training/train.py",
             extra_args=[
-                "--model", "Qwen/Qwen2.5-7B-Coder-Instruct",
-                "--data-dir", str(TRAIN_DIR),
-                "--output-dir", str(sft_checkpoint),
-                "--epochs", "3",
-                "--batch-size", "4",
-                "--grad-accum", "4",
-                "--lr", "2e-4",
-                "--lora-r", "64",
-                "--max-length", "4096",
-                "--deepspeed", "training/configs/deepspeed_zero3.json",
+                "--model",
+                "Qwen/Qwen2.5-7B-Coder-Instruct",
+                "--data-dir",
+                str(TRAIN_DIR),
+                "--output-dir",
+                str(sft_checkpoint),
+                "--epochs",
+                "3",
+                "--batch-size",
+                "4",
+                "--grad-accum",
+                "4",
+                "--lr",
+                "2e-4",
+                "--lora-r",
+                "64",
+                "--max-length",
+                "4096",
+                "--deepspeed",
+                "training/configs/deepspeed_zero3.json",
             ],
         )
     else:
-        logger.info(f"SFT checkpoint found at {sft_checkpoint}, skipping Stage 1")
+        logger.info(f"SFT checkpoint found at {sft_final}, skipping Stage 1")
 
     # Stage 2: GRPO
     if not (rl_checkpoint / "config.json").exists():
@@ -205,10 +247,14 @@ def stage_train(args: argparse.Namespace) -> None:
         _run_deepspeed(
             script="training/train_rl.py",
             extra_args=[
-                "--model", str(sft_checkpoint),
-                "--data-dir", str(TRAIN_DIR),
-                "--output-dir", str(rl_checkpoint),
-                "--deepspeed", "training/configs/rl_config.yaml",
+                "--model",
+                str(sft_final),
+                "--data-dir",
+                str(TRAIN_DIR),
+                "--output-dir",
+                str(rl_checkpoint),
+                "--deepspeed",
+                "training/configs/rl_config.yaml",
             ],
         )
     else:
@@ -220,10 +266,14 @@ def stage_train(args: argparse.Namespace) -> None:
         _run_deepspeed(
             script="training/train_dpo.py",
             extra_args=[
-                "--model", str(rl_checkpoint),
-                "--dpo-data", str(TRAIN_DIR / "dpo_pairs.jsonl"),
-                "--output-dir", str(final_checkpoint),
-                "--deepspeed", "training/configs/deepspeed_zero3.json",
+                "--model",
+                str(rl_checkpoint),
+                "--dpo-data",
+                str(TRAIN_DIR / "dpo_pairs.jsonl"),
+                "--output-dir",
+                str(final_checkpoint),
+                "--deepspeed",
+                "training/configs/deepspeed_zero3.json",
             ],
         )
     else:
@@ -236,6 +286,7 @@ def _run_deepspeed(script: str, extra_args: list[str]) -> None:
     """Launch a DeepSpeed training job."""
     import os
     import torch
+
     visible = os.environ.get("CUDA_VISIBLE_DEVICES", "")
     if visible:
         n_gpus = len(visible.split(","))
@@ -258,6 +309,7 @@ def stage_eval(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     from evaluation.forgequality_bench import ForgeQualityBench
+
     bench = ForgeQualityBench(model_path=str(final_checkpoint))
     results = bench.run_all()
 
@@ -275,7 +327,11 @@ def print_stats() -> None:
     """Print dataset statistics."""
     logger.info("=== DATASET STATS ===")
 
-    raw_papers = list((RAW_DIR / "openreview").glob("*.json")) if (RAW_DIR / "openreview").exists() else []
+    raw_papers = (
+        list((RAW_DIR / "openreview").glob("*.json"))
+        if (RAW_DIR / "openreview").exists()
+        else []
+    )
     logger.info(f"Raw papers (OpenReview):    {len(raw_papers):,}")
 
     processed_files = list(PROCESSED_DIR.glob("*.jsonl"))
@@ -297,8 +353,11 @@ def print_stats() -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="EvalForge — evaluation design pipeline")
+    parser = argparse.ArgumentParser(
+        description="EvalForge — evaluation design pipeline"
+    )
     parser.add_argument(
         "--stage",
         choices=["discovery", "synthesis", "train", "eval"],
@@ -310,8 +369,12 @@ def main() -> None:
         default="vllm",
         help="Synthesis backend (default: vllm)",
     )
-    parser.add_argument("--stats", action="store_true", help="Print dataset statistics and exit")
-    parser.add_argument("--force", action="store_true", help="Re-run stages even if outputs exist")
+    parser.add_argument(
+        "--stats", action="store_true", help="Print dataset statistics and exit"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Re-run stages even if outputs exist"
+    )
     args = parser.parse_args()
 
     if args.stats:

@@ -20,26 +20,27 @@ from __future__ import annotations
 
 import json
 import random
-import re
 import uuid
 from pathlib import Path
-from typing import Any
 
 from loguru import logger
 
 
 CONTAMINATION_TYPES = [
-    "ngram_overlap",       # verbatim n-gram from training data in item
-    "template_fill",       # fill-in-blank structure resolvable by pattern
-    "answer_leak",         # correct answer is recoverable from common web text
+    "ngram_overlap",  # verbatim n-gram from training data in item
+    "template_fill",  # fill-in-blank structure resolvable by pattern
+    "answer_leak",  # correct answer is recoverable from common web text
 ]
 
 SHORTCUT_TYPES = [
-    "length_bias",         # correct answer is systematically longer
-    "lexical_overlap",     # answer chosen by matching keywords in question
-    "negation_artifact",   # presence of negation word as sufficient signal
-    "position_bias",       # correct answer always at position A or D
-    "distractor_implausibility",  # wrong answers trivially rejectable
+    # Only types that _inject_contamination() actually handles — other types
+    # cause it to fall through and return (None, 0.0), producing false
+    # shortcuts_planted=[] even when a shortcut was intended.
+    "length_bias",  # correct answer is systematically longer
+    "position_bias",  # correct answer always at position A or D
+    "ngram_overlap",  # verbatim n-gram from training data in item
+    "template_fill",  # fill-in-blank structure resolvable by pattern
+    "answer_leak",  # correct answer is recoverable from common web text
 ]
 
 
@@ -72,7 +73,9 @@ class ContaminationProber:
         results: list[dict] = []
 
         # Add clean items (labeled as clean)
-        for item in random.sample(clean_items, min(len(clean_items), n_contaminated // 2)):
+        for item in random.sample(
+            clean_items, min(len(clean_items), n_contaminated // 2)
+        ):
             results.append(
                 {
                     "id": str(uuid.uuid4()),
@@ -159,7 +162,7 @@ class ContaminationProber:
         question = item.get("question", "")
         # Simplify to a fill-in structure
         choice_values = list(item.get("choices", {}).values())
-        answer = choice_values[0] if choice_values else ""
+        choice_values[0] if choice_values else ""
         item["question"] = f"The answer to '{question[:50]}...' is: ___"
         item["_contamination_note"] = "template_fill: question restructured as fill-in"
         return item
@@ -174,8 +177,12 @@ class ContaminationProber:
         if correct:
             words = correct.split()[:3]
             embed = " ".join(words)
-            item["question"] = item.get("question", "") + f" (Note: {embed} is relevant.)"
-            item["_contamination_note"] = "answer_leak: correct answer keywords embedded in question"
+            item["question"] = (
+                item.get("question", "") + f" (Note: {embed} is relevant.)"
+            )
+            item["_contamination_note"] = (
+                "answer_leak: correct answer keywords embedded in question"
+            )
         return item
 
     def _inject_length_bias(self, item: dict) -> dict:
@@ -188,7 +195,9 @@ class ContaminationProber:
                 " This is the correct and complete answer providing full detail and explanation."
             )
             item["choices"] = choices
-            item["_contamination_note"] = "length_bias: correct answer padded to be longest"
+            item["_contamination_note"] = (
+                "length_bias: correct answer padded to be longest"
+            )
         return item
 
     def _inject_position_bias(self, item: dict) -> dict:
@@ -206,7 +215,9 @@ class ContaminationProber:
                 new_choices[k] = text
             item["choices"] = new_choices
             item["answer"] = "A"
-            item["_contamination_note"] = "position_bias: correct answer moved to position A"
+            item["_contamination_note"] = (
+                "position_bias: correct answer moved to position A"
+            )
         return item
 
     def create_shortcut_detection_pairs(
@@ -258,9 +269,13 @@ if __name__ == "__main__":
     parser.add_argument("--n-contaminated", type=int, default=5000)
     args = parser.parse_args()
 
-    items = [json.loads(l) for l in Path(args.input).read_text().splitlines() if l.strip()]
+    items = [
+        json.loads(l) for l in Path(args.input).read_text().splitlines() if l.strip()
+    ]
     prober = ContaminationProber()
-    contaminated = prober.create_contaminated_dataset(items, n_contaminated=args.n_contaminated)
+    contaminated = prober.create_contaminated_dataset(
+        items, n_contaminated=args.n_contaminated
+    )
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)

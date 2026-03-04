@@ -28,17 +28,29 @@ from loguru import logger
 
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential
+
     HAS_TENACITY = True
 except ImportError:
     HAS_TENACITY = False
+
     def retry(*args, **kwargs):
-        def decorator(fn): return fn
+        def decorator(fn):
+            return fn
+
         return decorator
-    def stop_after_attempt(n): return None
-    def wait_exponential(**kwargs): return None
+
+    def stop_after_attempt(n):
+        return None
+
+    def wait_exponential(**kwargs):
+        return None
+
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-VLLM_URLS = os.environ.get("VLLM_URLS", "http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004").split(",")
+VLLM_URLS = os.environ.get(
+    "VLLM_URLS",
+    "http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004",
+).split(",")
 SEMANTIC_SCHOLAR_API_KEY = os.environ.get("SEMANTIC_SCHOLAR_API_KEY", "")
 
 SEMANTIC_SCHOLAR_BASE = "https://api.semanticscholar.org/graph/v1"
@@ -185,9 +197,20 @@ def _extract_methodology_patterns(abstract: str) -> list[str]:
     # Find sentences describing evaluation approaches
     sentences = re.split(r"(?<=[.!?])\s+", abstract)
     eval_keywords = [
-        "evaluat", "benchmark", "measur", "assess", "test", "metric",
-        "performance", "accuracy", "contamin", "shortcut", "artifact",
-        "bias", "generaliz", "robustness",
+        "evaluat",
+        "benchmark",
+        "measur",
+        "assess",
+        "test",
+        "metric",
+        "performance",
+        "accuracy",
+        "contamin",
+        "shortcut",
+        "artifact",
+        "bias",
+        "generaliz",
+        "robustness",
     ]
     for sentence in sentences:
         sentence_lower = sentence.lower()
@@ -205,9 +228,21 @@ def _extract_failure_modes(abstract: str) -> list[str]:
         return []
 
     failure_keywords = [
-        "fail", "limitation", "problem", "issue", "bias", "shortcut",
-        "artifact", "contamin", "overfit", "saturate", "incorrect",
-        "mislead", "flawed", "invalid", "wrong",
+        "fail",
+        "limitation",
+        "problem",
+        "issue",
+        "bias",
+        "shortcut",
+        "artifact",
+        "contamin",
+        "overfit",
+        "saturate",
+        "incorrect",
+        "mislead",
+        "flawed",
+        "invalid",
+        "wrong",
     ]
 
     sentences = re.split(r"(?<=[.!?])\s+", abstract)
@@ -231,13 +266,26 @@ def _score_paper_relevance(paper: dict[str, Any]) -> float:
     text = title + " " + abstract
 
     high_value_terms = [
-        "contamination", "shortcut", "artifact", "benchmark critique",
-        "evaluation failure", "spurious", "overfitting benchmark",
-        "data leakage", "annotation artifact", "saturation",
+        "contamination",
+        "shortcut",
+        "artifact",
+        "benchmark critique",
+        "evaluation failure",
+        "spurious",
+        "overfitting benchmark",
+        "data leakage",
+        "annotation artifact",
+        "saturation",
     ]
     medium_value_terms = [
-        "evaluation", "benchmark", "assessment", "performance measurement",
-        "metric", "leaderboard", "robustness", "generalization",
+        "evaluation",
+        "benchmark",
+        "assessment",
+        "performance measurement",
+        "metric",
+        "leaderboard",
+        "robustness",
+        "generalization",
     ]
 
     for term in high_value_terms:
@@ -306,25 +354,29 @@ class AcademicPaperCrawler:
 
                 meth = _extract_methodology_patterns(abstract)
                 if meth:
-                    methodologies.append({
-                        "paper_id": paper_id,
-                        "title": title,
-                        "category": category,
-                        "patterns": meth,
-                        "year": paper.get("year"),
-                        "citations": paper.get("citationCount", 0),
-                    })
+                    methodologies.append(
+                        {
+                            "paper_id": paper_id,
+                            "title": title,
+                            "category": category,
+                            "patterns": meth,
+                            "year": paper.get("year"),
+                            "citations": paper.get("citationCount", 0),
+                        }
+                    )
 
                 fails = _extract_failure_modes(abstract)
                 if fails:
-                    failure_modes.append({
-                        "paper_id": paper_id,
-                        "title": title,
-                        "category": category,
-                        "failure_modes": fails,
-                        "year": paper.get("year"),
-                        "citations": paper.get("citationCount", 0),
-                    })
+                    failure_modes.append(
+                        {
+                            "paper_id": paper_id,
+                            "title": title,
+                            "category": category,
+                            "failure_modes": fails,
+                            "year": paper.get("year"),
+                            "citations": paper.get("citationCount", 0),
+                        }
+                    )
 
             time.sleep(1.0)  # Polite delay between queries
 
@@ -353,9 +405,7 @@ class AcademicPaperCrawler:
             "failure_mode_papers": len(failure_modes),
         }
 
-    def _crawl_query(
-        self, query: str, category: str, limit: int
-    ) -> list[dict]:
+    def _crawl_query(self, query: str, category: str, limit: int) -> list[dict]:
         """Fetch papers for a single search query, paginating as needed."""
         papers: list[dict] = []
         offset = 0
@@ -376,19 +426,24 @@ class AcademicPaperCrawler:
                     self._seen_ids.add(pid)
 
                     # Normalize
-                    papers.append({
-                        "paperId": pid,
-                        "title": paper.get("title", ""),
-                        "abstract": paper.get("abstract", ""),
-                        "year": paper.get("year"),
-                        "citationCount": paper.get("citationCount", 0),
-                        "authors": [a.get("name", "") for a in (paper.get("authors") or [])[:5]],
-                        "venue": paper.get("venue", ""),
-                        "fieldsOfStudy": paper.get("fieldsOfStudy") or [],
-                        "tldr": (paper.get("tldr") or {}).get("text", ""),
-                        "category": category,
-                        "query": query,
-                    })
+                    papers.append(
+                        {
+                            "paperId": pid,
+                            "title": paper.get("title", ""),
+                            "abstract": paper.get("abstract", ""),
+                            "year": paper.get("year"),
+                            "citationCount": paper.get("citationCount", 0),
+                            "authors": [
+                                a.get("name", "")
+                                for a in (paper.get("authors") or [])[:5]
+                            ],
+                            "venue": paper.get("venue", ""),
+                            "fieldsOfStudy": paper.get("fieldsOfStudy") or [],
+                            "tldr": (paper.get("tldr") or {}).get("text", ""),
+                            "category": category,
+                            "query": query,
+                        }
+                    )
 
                 offset += len(batch)
                 total = result.get("total", 0)
@@ -414,9 +469,13 @@ class AcademicPaperCrawler:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Crawl academic papers about AI evaluation")
+    parser = argparse.ArgumentParser(
+        description="Crawl academic papers about AI evaluation"
+    )
     parser.add_argument("--output", default="data/raw/papers", help="Output directory")
-    parser.add_argument("--max-papers", type=int, default=5000, help="Max papers to collect")
+    parser.add_argument(
+        "--max-papers", type=int, default=5000, help="Max papers to collect"
+    )
     args = parser.parse_args()
 
     crawler = AcademicPaperCrawler(output_dir=args.output)

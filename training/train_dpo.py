@@ -24,7 +24,7 @@ from pathlib import Path
 import torch
 from datasets import Dataset
 from loguru import logger
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import DPOConfig, DPOTrainer
 
 
@@ -103,16 +103,26 @@ def main() -> None:
         deepspeed=args.deepspeed,
     )
 
+    # Load both policy and reference models explicitly as objects so that
+    # DeepSpeed can manage them consistently (passing a string path for the
+    # policy while the ref is already an object causes device placement
+    # conflicts under ZeRO-3).
+    logger.info("Loading policy model...")
+    policy_model = AutoModelForCausalLM.from_pretrained(
+        args.model, torch_dtype=torch.bfloat16, device_map=None
+    )
+
     # Load a frozen reference model so DPO has a proper KL anchor.
     # Using ref_model=None would make the policy serve as its own reference,
     # eliminating the KL constraint and destabilizing training.
+    logger.info("Loading reference model...")
     ref_model = AutoModelForCausalLM.from_pretrained(
         args.model, torch_dtype=torch.bfloat16, device_map=None
     )
     ref_model.eval()
 
     trainer = DPOTrainer(
-        model=args.model,
+        model=policy_model,
         ref_model=ref_model,
         args=dpo_config,
         train_dataset=train_ds,
@@ -122,9 +132,15 @@ def main() -> None:
     logger.info(f"Starting DPO training → {args.output_dir}")
     trainer.train()
 
+    logger.info(f"Saving DPO model to {args.output_dir}...")
+    trainer.save_model(args.output_dir)
+    tokenizer.save_pretrained(args.output_dir)
+
     logger.info(f"DPO complete. Final model saved to {args.output_dir}")
     logger.info("EvalForge training pipeline complete.")
-    logger.info(f"To serve: vllm serve {args.output_dir} --port 9000 --gpu-memory-utilization 0.9")
+    logger.info(
+        f"To serve: vllm serve {args.output_dir} --port 9000 --gpu-memory-utilization 0.9"
+    )
 
 
 if __name__ == "__main__":

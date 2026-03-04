@@ -20,12 +20,12 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import json
 import os
 import uuid
-from typing import Any
 
 import anthropic
 from loguru import logger
@@ -123,7 +123,9 @@ class ItemGenerator:
         response = response.strip()
         if response.startswith("```"):
             lines = response.split("\n")
-            response = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+            response = "\n".join(
+                lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
+            )
         try:
             data = json.loads(response)
             return data.get("items", [])

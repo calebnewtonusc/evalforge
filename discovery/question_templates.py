@@ -21,7 +21,6 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any
 
 import requests
 from bs4 import BeautifulSoup
@@ -29,14 +28,23 @@ from loguru import logger
 
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential
+
     HAS_TENACITY = True
 except ImportError:
     HAS_TENACITY = False
+
     def retry(*args, **kwargs):
-        def decorator(fn): return fn
+        def decorator(fn):
+            return fn
+
         return decorator
-    def stop_after_attempt(n): return None
-    def wait_exponential(**kwargs): return None
+
+    def stop_after_attempt(n):
+        return None
+
+    def wait_exponential(**kwargs):
+        return None
+
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VLLM_URLS = os.environ.get(
@@ -67,7 +75,9 @@ def _clean_text(text: str) -> str:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
-def _fetch(url: str, params: dict | None = None, timeout: int = REQUEST_TIMEOUT) -> requests.Response:
+def _fetch(
+    url: str, params: dict | None = None, timeout: int = REQUEST_TIMEOUT
+) -> requests.Response:
     """HTTP GET with retry."""
     resp = requests.get(url, params=params, headers=HEADERS, timeout=timeout)
     resp.raise_for_status()
@@ -157,17 +167,19 @@ class AoPSCrawler:
             else:
                 difficulty = "easy-medium"
 
-            problems.append({
-                "source": "aops",
-                "contest": contest_name,
-                "problem_number": int(problem_num),
-                "question": problem_text,
-                "category": "math",
-                "subcategory": self._classify_math(problem_text),
-                "difficulty": difficulty,
-                "answer": None,  # Answers require separate page
-                "url": f"https://artofproblemsolving.com/wiki/index.php/{page_name}",
-            })
+            problems.append(
+                {
+                    "source": "aops",
+                    "contest": contest_name,
+                    "problem_number": int(problem_num),
+                    "question": problem_text,
+                    "category": "math",
+                    "subcategory": self._classify_math(problem_text),
+                    "difficulty": difficulty,
+                    "answer": None,  # Answers require separate page
+                    "url": f"https://artofproblemsolving.com/wiki/index.php/{page_name}",
+                }
+            )
 
         return problems
 
@@ -176,15 +188,25 @@ class AoPSCrawler:
         text_lower = text.lower()
         if any(w in text_lower for w in ["probability", "expected value", "random"]):
             return "probability"
-        if any(w in text_lower for w in ["prime", "divisible", "modulo", "integer", "digit"]):
+        if any(
+            w in text_lower
+            for w in ["prime", "divisible", "modulo", "integer", "digit"]
+        ):
             return "number_theory"
-        if any(w in text_lower for w in ["triangle", "circle", "area", "perimeter", "angle"]):
+        if any(
+            w in text_lower
+            for w in ["triangle", "circle", "area", "perimeter", "angle"]
+        ):
             return "geometry"
         if any(w in text_lower for w in ["sequence", "sum", "series", "term"]):
             return "sequences"
-        if any(w in text_lower for w in ["polynomial", "equation", "roots", "function"]):
+        if any(
+            w in text_lower for w in ["polynomial", "equation", "roots", "function"]
+        ):
             return "algebra"
-        if any(w in text_lower for w in ["combination", "permutation", "arrange", "choose"]):
+        if any(
+            w in text_lower for w in ["combination", "permutation", "arrange", "choose"]
+        ):
             return "combinatorics"
         return "general"
 
@@ -210,17 +232,19 @@ class ProjectEulerCrawler:
                         prob_id = int(parts[0].strip())
                         title = parts[1].strip()
                         # Content not directly available in minimal format
-                        problems.append({
-                            "source": "project_euler",
-                            "problem_id": prob_id,
-                            "title": title,
-                            "question": f"Project Euler Problem {prob_id}: {title}",
-                            "category": "math",
-                            "subcategory": "computational_math",
-                            "difficulty": "hard" if prob_id > 100 else "medium",
-                            "answer": None,
-                            "url": f"https://projecteuler.net/problem={prob_id}",
-                        })
+                        problems.append(
+                            {
+                                "source": "project_euler",
+                                "problem_id": prob_id,
+                                "title": title,
+                                "question": f"Project Euler Problem {prob_id}: {title}",
+                                "category": "math",
+                                "subcategory": "computational_math",
+                                "difficulty": "hard" if prob_id > 100 else "medium",
+                                "answer": None,
+                                "url": f"https://projecteuler.net/problem={prob_id}",
+                            }
+                        )
                     except (ValueError, IndexError):
                         continue
 
@@ -242,23 +266,25 @@ class ProjectEulerCrawler:
                 soup = BeautifulSoup(resp.text, "html.parser")
                 problem_content = soup.find("div", {"class": "problem_content"})
                 if not problem_content:
-                    break
+                    continue
 
                 text = _clean_text(problem_content.get_text())
                 if len(text) < 20:
                     continue
 
-                problems.append({
-                    "source": "project_euler",
-                    "problem_id": prob_id,
-                    "title": f"Problem {prob_id}",
-                    "question": text,
-                    "category": "math",
-                    "subcategory": "computational_math",
-                    "difficulty": "hard" if prob_id > 100 else "medium",
-                    "answer": None,
-                    "url": f"https://projecteuler.net/problem={prob_id}",
-                })
+                problems.append(
+                    {
+                        "source": "project_euler",
+                        "problem_id": prob_id,
+                        "title": f"Problem {prob_id}",
+                        "question": text,
+                        "category": "math",
+                        "subcategory": "computational_math",
+                        "difficulty": "hard" if prob_id > 100 else "medium",
+                        "answer": None,
+                        "url": f"https://projecteuler.net/problem={prob_id}",
+                    }
+                )
 
                 time.sleep(REQUEST_DELAY * 2)  # Polite
             except Exception as exc:
@@ -324,21 +350,27 @@ class RosettaCodeCrawler:
 
         for member in members[:limit]:
             title = member.get("title", "")
-            if not title or title.startswith("Category:") or title.startswith("Template:"):
+            if (
+                not title
+                or title.startswith("Category:")
+                or title.startswith("Template:")
+            ):
                 continue
 
-            tasks.append({
-                "source": "rosetta_code",
-                "task_name": title,
-                "question": f"Write a program to: {title}",
-                "description": f"Implement the following programming task: {title}. "
-                               f"This is a standard programming challenge from the Rosetta Code collection.",
-                "category": "coding",
-                "subcategory": category.lower().replace("_", " "),
-                "difficulty": "medium",
-                "answer": None,
-                "url": f"https://rosettacode.org/wiki/{title.replace(' ', '_')}",
-            })
+            tasks.append(
+                {
+                    "source": "rosetta_code",
+                    "task_name": title,
+                    "question": f"Write a program to: {title}",
+                    "description": f"Implement the following programming task: {title}. "
+                    f"This is a standard programming challenge from the Rosetta Code collection.",
+                    "category": "coding",
+                    "subcategory": category.lower().replace("_", " "),
+                    "difficulty": "medium",
+                    "answer": None,
+                    "url": f"https://rosettacode.org/wiki/{title.replace(' ', '_')}",
+                }
+            )
 
         return tasks
 
@@ -384,7 +416,7 @@ class HackerRankCrawler:
             data = resp.json()
         except Exception:
             # HackerRank may block; try alternate public endpoint
-            url2 = f"https://www.hackerrank.com/rest/contests/master/challenges"
+            url2 = "https://www.hackerrank.com/rest/contests/master/challenges"
             resp = _fetch(url2, params={"track": slug, "limit": limit})
             data = resp.json()
 
@@ -399,17 +431,19 @@ class HackerRankCrawler:
             if not name:
                 continue
 
-            challenges.append({
-                "source": "hackerrank",
-                "challenge_slug": item.get("slug", ""),
-                "question": f"{name}: {preview}" if preview else name,
-                "category": category,
-                "subcategory": slug,
-                "difficulty": difficulty,
-                "max_score": item.get("max_score", 0),
-                "answer": None,
-                "url": f"https://www.hackerrank.com/challenges/{item.get('slug', '')}/problem",
-            })
+            challenges.append(
+                {
+                    "source": "hackerrank",
+                    "challenge_slug": item.get("slug", ""),
+                    "question": f"{name}: {preview}" if preview else name,
+                    "category": category,
+                    "subcategory": slug,
+                    "difficulty": difficulty,
+                    "max_score": item.get("max_score", 0),
+                    "answer": None,
+                    "url": f"https://www.hackerrank.com/challenges/{item.get('slug', '')}/problem",
+                }
+            )
 
         return challenges
 
@@ -450,21 +484,27 @@ class QuestionTemplateCollector:
 
         if "euler" in sources:
             logger.info("Crawling Project Euler...")
-            crawled = ProjectEulerCrawler().crawl(self.output_dir, max_problems=max_per_source)
+            crawled = ProjectEulerCrawler().crawl(
+                self.output_dir, max_problems=max_per_source
+            )
             self._save("euler.jsonl", crawled)
             all_templates.extend(crawled)
             counts["euler"] = len(crawled)
 
         if "rosetta" in sources:
             logger.info("Crawling Rosetta Code...")
-            crawled = RosettaCodeCrawler().crawl(self.output_dir, max_tasks=max_per_source)
+            crawled = RosettaCodeCrawler().crawl(
+                self.output_dir, max_tasks=max_per_source
+            )
             self._save("rosetta.jsonl", crawled)
             all_templates.extend(crawled)
             counts["rosetta"] = len(crawled)
 
         if "hackerrank" in sources:
             logger.info("Crawling HackerRank...")
-            crawled = HackerRankCrawler().crawl(self.output_dir, max_challenges=max_per_source)
+            crawled = HackerRankCrawler().crawl(
+                self.output_dir, max_challenges=max_per_source
+            )
             self._save("hackerrank.jsonl", crawled)
             all_templates.extend(crawled)
             counts["hackerrank"] = len(crawled)
@@ -485,7 +525,9 @@ class QuestionTemplateCollector:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Collect question templates from contest/coding sites")
+    parser = argparse.ArgumentParser(
+        description="Collect question templates from contest/coding sites"
+    )
     parser.add_argument("--output", default="data/raw/question_templates")
     parser.add_argument(
         "--sources",

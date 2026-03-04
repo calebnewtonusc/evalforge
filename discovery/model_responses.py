@@ -22,7 +22,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import time
 from pathlib import Path
 from typing import Any
 
@@ -32,14 +31,23 @@ from loguru import logger
 
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential
+
     HAS_TENACITY = True
 except ImportError:
     HAS_TENACITY = False
+
     def retry(*args, **kwargs):
-        def decorator(fn): return fn
+        def decorator(fn):
+            return fn
+
         return decorator
-    def stop_after_attempt(n): return None
-    def wait_exponential(**kwargs): return None
+
+    def stop_after_attempt(n):
+        return None
+
+    def wait_exponential(**kwargs):
+        return None
+
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VLLM_URLS = os.environ.get(
@@ -96,9 +104,8 @@ def _call_hf_inference(model_id: str, prompt: str, max_tokens: int = 5) -> str |
         if resp.status_code == 503:
             # Model loading, skip
             return None
-        if resp.status_code == 429:
-            time.sleep(30)
-            resp.raise_for_status()
+        # For 429 (rate limit), let tenacity's wait_exponential handle backoff;
+        # a manual sleep here would double the wait time.
         resp.raise_for_status()
         result = resp.json()
         if isinstance(result, list) and result:
@@ -203,8 +210,7 @@ def probe_question(
 
     # Contamination flag
     is_contaminated = (
-        n_responding >= MIN_RESPONDING_MODELS
-        and consistency >= CONSISTENCY_THRESHOLD
+        n_responding >= MIN_RESPONDING_MODELS and consistency >= CONSISTENCY_THRESHOLD
     )
 
     # Check if top answer matches correct answer
@@ -298,12 +304,19 @@ class ModelResponseProber:
 
         if loop and loop.is_running():
             import concurrent.futures
+
             future = concurrent.futures.Future()
+
             def _run():
                 import asyncio as _asyncio
-                result = _asyncio.run(self._probe_batch_async(questions, concurrency=concurrency))
+
+                result = _asyncio.run(
+                    self._probe_batch_async(questions, concurrency=concurrency)
+                )
                 future.set_result(result)
+
             import threading
+
             t = threading.Thread(target=_run, daemon=True)
             t.start()
             t.join()
@@ -321,7 +334,9 @@ class ModelResponseProber:
 
         # Save contamination-flagged subset
         flagged = [r for r in results if r["is_contaminated"]]
-        flagged_path = self.output_dir / output_filename.replace(".jsonl", "_contaminated.jsonl")
+        flagged_path = self.output_dir / output_filename.replace(
+            ".jsonl", "_contaminated.jsonl"
+        )
         with flagged_path.open("w") as fh:
             for r in flagged:
                 fh.write(json.dumps(r) + "\n")
@@ -345,9 +360,7 @@ class ModelResponseProber:
     ) -> list[dict[str, Any]]:
         semaphore = asyncio.Semaphore(concurrency)
         async with aiohttp.ClientSession() as session:
-            tasks = [
-                _probe_async(session, q, semaphore) for q in questions
-            ]
+            tasks = [_probe_async(session, q, semaphore) for q in questions]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
         processed: list[dict] = []
@@ -362,9 +375,15 @@ class ModelResponseProber:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Probe questions for contamination via model consistency")
-    parser.add_argument("--questions", required=True, help="JSONL file with questions to probe")
-    parser.add_argument("--output", default="data/raw/model_responses", help="Output directory")
+    parser = argparse.ArgumentParser(
+        description="Probe questions for contamination via model consistency"
+    )
+    parser.add_argument(
+        "--questions", required=True, help="JSONL file with questions to probe"
+    )
+    parser.add_argument(
+        "--output", default="data/raw/model_responses", help="Output directory"
+    )
     parser.add_argument("--concurrency", type=int, default=4, help="Parallel probes")
     parser.add_argument("--max-questions", type=int, default=5000)
     args = parser.parse_args()

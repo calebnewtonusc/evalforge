@@ -22,7 +22,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from loguru import logger
 
 
@@ -76,6 +75,7 @@ class ContaminationAgent:
 
         if model_url:
             import openai
+
             self._llm_client = openai.OpenAI(
                 base_url=f"{model_url}/v1",
                 api_key=os.environ.get("VLLM_API_KEY", "dummy"),
@@ -119,7 +119,11 @@ class ContaminationAgent:
         # Composite score (weighted)
         weights = {"ngram": 0.4, "template": 0.3, "memorization": 0.3}
         total_weight = sum(weights[m] for m in scores)
-        composite = sum(scores[m] * weights[m] for m in scores) / total_weight if total_weight > 0 else 0.0
+        composite = (
+            sum(scores[m] * weights[m] for m in scores) / total_weight
+            if total_weight > 0
+            else 0.0
+        )
 
         methods_flagged = [m for m, s in scores.items() if s > 0.5]
 
@@ -161,9 +165,7 @@ class ContaminationAgent:
             parts.extend(str(c) for c in choices)
         return " ".join(str(p) for p in parts if p)
 
-    def _ngram_check(
-        self, text: str, n: int = 6
-    ) -> tuple[float, dict]:
+    def _ngram_check(self, text: str, n: int = 6) -> tuple[float, dict]:
         """
         Check for n-gram overlap with indexed training data.
 
@@ -197,13 +199,19 @@ class ContaminationAgent:
         for ngram in item_ngrams:
             h = hashlib.md5(ngram.encode()).hexdigest()[:8]
             if h in self.ngram_index:
-                matches.append({"ngram": ngram, "sources": list(self.ngram_index[h])[:3]})
+                matches.append(
+                    {"ngram": ngram, "sources": list(self.ngram_index[h])[:3]}
+                )
 
         if not matches:
             return 0.0, {"method": "ngram_index", "matches": 0}
 
         score = min(1.0, len(matches) / max(1, len(item_ngrams)) * 3.0)
-        return round(score, 3), {"method": "ngram_index", "matches": len(matches), "examples": matches[:3]}
+        return round(score, 3), {
+            "method": "ngram_index",
+            "matches": len(matches),
+            "examples": matches[:3],
+        }
 
     def _template_check(self, text: str) -> tuple[float, dict]:
         """
@@ -283,6 +291,13 @@ class ContaminationAgent:
     def _load_ngram_index(self, path: str) -> None:
         """Load precomputed n-gram index."""
         logger.info(f"Loading n-gram index from {path}...")
-        data = json.loads(Path(path).read_text())
-        self.ngram_index = {k: set(v) for k, v in data.items()}
-        logger.info(f"Loaded {len(self.ngram_index):,} n-gram entries")
+        try:
+            data = json.loads(Path(path).read_text())
+            self.ngram_index = {k: set(v) for k, v in data.items()}
+            logger.info(f"Loaded {len(self.ngram_index):,} n-gram entries")
+        except json.JSONDecodeError as exc:
+            logger.warning(
+                f"N-gram index at {path} is corrupted and could not be parsed "
+                f"({exc}). Falling back to heuristic contamination detection."
+            )
+            self.ngram_index = {}

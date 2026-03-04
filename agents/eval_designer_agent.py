@@ -22,14 +22,12 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 from loguru import logger
 
-from core.goodhart_patterns import PATTERNS, pattern_summary
 from core.irt_models import IRTCalibrator
 from synthesis.shortcut_detector import ShortcutDetector
 
@@ -40,10 +38,10 @@ class AuditReport:
 
     benchmark_name: str
     n_items: int
-    contamination_score: float            # 0.0–1.0
-    contaminated_items: list[str]         # item IDs flagged
-    shortcuts_detected: list[dict]        # list of shortcut pattern summaries
-    irt_analysis: dict[str, Any]          # discrimination, difficulty, quality flags
+    contamination_score: float  # 0.0–1.0
+    contaminated_items: list[str]  # item IDs flagged
+    shortcuts_detected: list[dict]  # list of shortcut pattern summaries
+    irt_analysis: dict[str, Any]  # discrimination, difficulty, quality flags
     downstream_correlation: dict[str, float]  # pearson r, spearman rho, etc.
     flagged_item_fraction: float
     recommendation: str
@@ -93,6 +91,7 @@ class EvalDesignerAgent:
 
         if model_url:
             import openai
+
             self._client = openai.OpenAI(
                 base_url=f"{model_url}/v1",
                 api_key=os.environ.get("VLLM_API_KEY", "dummy"),
@@ -142,7 +141,9 @@ class EvalDesignerAgent:
 
         n_items = len(items)
         for pattern, data in all_shortcuts.items():
-            data["affected_fraction"] = round(data["n_items_affected"] / n_items, 3)
+            data["affected_fraction"] = round(
+                data["n_items_affected"] / max(1, n_items), 3
+            )
 
         shortcuts_detected = list(all_shortcuts.values())
 
@@ -166,13 +167,19 @@ class EvalDesignerAgent:
             irt_analysis = {
                 "n_items": n_items,
                 "low_discrimination_count": sum(
-                    1 for ip in irt_result.item_parameters if "LOW_DISCRIMINATION" in ip.quality_flags
+                    1
+                    for ip in irt_result.item_parameters
+                    if "LOW_DISCRIMINATION" in ip.quality_flags
                 ),
                 "ceiling_items": sum(
-                    1 for ip in irt_result.item_parameters if "CEILING" in ip.quality_flags
+                    1
+                    for ip in irt_result.item_parameters
+                    if "CEILING" in ip.quality_flags
                 ),
                 "floor_items": sum(
-                    1 for ip in irt_result.item_parameters if "FLOOR" in ip.quality_flags
+                    1
+                    for ip in irt_result.item_parameters
+                    if "FLOOR" in ip.quality_flags
                 ),
                 "reliability_estimate": irt_result.test_information.reliability_estimate,
                 "effective_n_items": irt_result.test_information.effective_n_items,
@@ -189,7 +196,9 @@ class EvalDesignerAgent:
             irt_analysis = {
                 "n_items": n_items,
                 "low_discrimination_count": sum(
-                    1 for ip in irt_result.item_parameters if "LOW_DISCRIMINATION" in ip.quality_flags
+                    1
+                    for ip in irt_result.item_parameters
+                    if "LOW_DISCRIMINATION" in ip.quality_flags
                 ),
                 "reliability_estimate": irt_result.test_information.reliability_estimate,
             }
@@ -204,9 +213,13 @@ class EvalDesignerAgent:
         # 5. Priority items to replace
         flagged_items: list[str] = []
         if irt_result:
-            flagged_items.extend(self.irt_calibrator.get_items_to_replace(irt_result, max_to_replace=10))
+            flagged_items.extend(
+                self.irt_calibrator.get_items_to_replace(irt_result, max_to_replace=10)
+            )
         flagged_items.extend(contaminated_items[:10])
-        flagged_items = list(dict.fromkeys(flagged_items))  # deduplicate, preserve order
+        flagged_items = list(
+            dict.fromkeys(flagged_items)
+        )  # deduplicate, preserve order
 
         # 6. Overall recommendation
         critical_fraction = len(contaminated_items) / max(1, n_items)
@@ -294,7 +307,7 @@ class EvalDesignerAgent:
                     f"Does the question appear verbatim or near-verbatim in Common Crawl, "
                     f"Wikipedia, or other common pretraining sources?\n\n"
                     f"Item: {json.dumps(item, indent=2)}\n\n"
-                    "Respond with JSON: {\"contaminated\": true/false, \"evidence\": \"...\"}"
+                    'Respond with JSON: {"contaminated": true/false, "evidence": "..."}'
                 )
                 resp = self._client.chat.completions.create(
                     model="evalforge",
@@ -321,13 +334,19 @@ class EvalDesignerAgent:
         Flags items with very common n-grams as potentially contaminated.
         """
         common_phrases = {
-            "according to", "as stated in", "the following", "which of the following",
-            "based on the", "in accordance with",
+            "according to",
+            "as stated in",
+            "the following",
+            "which of the following",
+            "based on the",
+            "in accordance with",
         }
         flagged = []
         for item in items:
             question = item.get("question", "").lower()
             if any(phrase in question for phrase in common_phrases):
-                if len(question) < 100:  # Short items with template phrases are suspicious
+                if (
+                    len(question) < 100
+                ):  # Short items with template phrases are suspicious
                     flagged.append(item.get("id", "unknown"))
         return flagged

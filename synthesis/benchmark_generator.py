@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import ast
@@ -33,7 +34,6 @@ import random
 import re
 import subprocess
 import textwrap
-import time
 from typing import Any
 
 import anthropic
@@ -42,14 +42,23 @@ from loguru import logger
 
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential
+
     HAS_TENACITY = True
 except ImportError:
     HAS_TENACITY = False
+
     def retry(*args, **kwargs):
-        def decorator(fn): return fn
+        def decorator(fn):
+            return fn
+
         return decorator
-    def stop_after_attempt(n): return None
-    def wait_exponential(**kwargs): return None
+
+    def stop_after_attempt(n):
+        return None
+
+    def wait_exponential(**kwargs):
+        return None
+
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VLLM_URLS = os.environ.get(
@@ -88,7 +97,9 @@ def _vllm_round_robin() -> str:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
-def call_vllm(prompt: str, system: str = GENERATION_SYSTEM_PROMPT, max_tokens: int = 1024) -> str:
+def call_vllm(
+    prompt: str, system: str = GENERATION_SYSTEM_PROMPT, max_tokens: int = 1024
+) -> str:
     """Call vLLM with OpenAI-compatible chat completions endpoint."""
     url = _vllm_round_robin()
     payload = {
@@ -112,7 +123,9 @@ def call_vllm(prompt: str, system: str = GENERATION_SYSTEM_PROMPT, max_tokens: i
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
-def call_claude(prompt: str, system: str = GENERATION_SYSTEM_PROMPT, max_tokens: int = 1024) -> str:
+def call_claude(
+    prompt: str, system: str = GENERATION_SYSTEM_PROMPT, max_tokens: int = 1024
+) -> str:
     """Call Anthropic Claude API as fallback."""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     msg = client.messages.create(
@@ -165,7 +178,9 @@ def _extract_json(text: str) -> dict[str, Any] | None:
     return None
 
 
-def _verify_math_answer(question: str, answer: str, explanation: str) -> tuple[bool, str]:
+def _verify_math_answer(
+    question: str, answer: str, explanation: str
+) -> tuple[bool, str]:
     """
     Verify a math answer using sympy for symbolic computation.
     Returns (is_correct, verification_note).
@@ -194,7 +209,9 @@ def _verify_math_answer(question: str, answer: str, explanation: str) -> tuple[b
         return True, f"verification skipped: {exc}"
 
 
-def _verify_code_answer(question: str, answer: str, explanation: str) -> tuple[bool, str]:
+def _verify_code_answer(
+    question: str, answer: str, explanation: str
+) -> tuple[bool, str]:
     """
     Verify a coding answer by executing it in a subprocess sandbox.
     Returns (is_correct, verification_note).
@@ -311,7 +328,6 @@ class BenchmarkGenerator:
         self._generated_fingerprints: set[str] = set()
 
     def _load_catalog(self, path: Path) -> None:
-        from discovery.existing_benchmarks import _item_fingerprint
 
         with path.open() as fh:
             for line in fh:
@@ -342,7 +358,9 @@ class BenchmarkGenerator:
         generated = 0
         batch: list[dict] = []
         attempts = 0
-        max_attempts = count * 5  # Guard against infinite loop when generation consistently fails
+        max_attempts = (
+            count * 5
+        )  # Guard against infinite loop when generation consistently fails
 
         with self.output_path.open("w") as out_fh:
             while generated < count:
@@ -361,7 +379,9 @@ class BenchmarkGenerator:
 
                 # Contamination check
                 if self._is_contaminated(result["question"]):
-                    logger.debug(f"  Filtered contaminated question: {result['question'][:60]}...")
+                    logger.debug(
+                        f"  Filtered contaminated question: {result['question'][:60]}..."
+                    )
                     continue
 
                 # Dedup within generated set
@@ -385,10 +405,14 @@ class BenchmarkGenerator:
                     out_fh.write(json.dumps(item) + "\n")
                 generated += len(batch)
 
-        logger.success(f"Benchmark generation complete: {generated} questions → {self.output_path}")
+        logger.success(
+            f"Benchmark generation complete: {generated} questions → {self.output_path}"
+        )
         return generated
 
-    def _generate_one(self, template: dict, backend: str = "vllm") -> dict[str, Any] | None:
+    def _generate_one(
+        self, template: dict, backend: str = "vllm"
+    ) -> dict[str, Any] | None:
         """Generate a single question from a template. Returns None on failure."""
         try:
             prompt = _build_generation_prompt(template)
@@ -430,9 +454,13 @@ class BenchmarkGenerator:
                 "question": question,
                 "answer": answer,
                 "explanation": result.get("explanation", ""),
-                "difficulty": result.get("difficulty", template.get("difficulty", "medium")),
+                "difficulty": result.get(
+                    "difficulty", template.get("difficulty", "medium")
+                ),
                 "category": template.get("category", "general"),
-                "subcategory": result.get("subcategory", template.get("subcategory", "")),
+                "subcategory": result.get(
+                    "subcategory", template.get("subcategory", "")
+                ),
                 "source_template": template.get("source", "unknown"),
                 "verification_type": verification_type,
                 "verification_note": note,
@@ -452,6 +480,7 @@ class BenchmarkGenerator:
 
     def _question_fingerprint(self, text: str) -> str:
         import hashlib
+
         normalized = re.sub(r"\s+", " ", text.lower().strip())
         return hashlib.sha256(normalized.encode()).hexdigest()
 
@@ -471,7 +500,9 @@ class BenchmarkGenerator:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Generate contamination-resistant benchmark questions")
+    parser = argparse.ArgumentParser(
+        description="Generate contamination-resistant benchmark questions"
+    )
     parser.add_argument(
         "--templates",
         default="data/raw/question_templates/all_templates.jsonl",
@@ -487,7 +518,9 @@ if __name__ == "__main__":
         default="data/synthesized/benchmark_questions.jsonl",
         help="Output path for generated questions",
     )
-    parser.add_argument("--count", type=int, default=50000, help="Number of questions to generate")
+    parser.add_argument(
+        "--count", type=int, default=50000, help="Number of questions to generate"
+    )
     parser.add_argument(
         "--backend",
         choices=["vllm", "claude"],

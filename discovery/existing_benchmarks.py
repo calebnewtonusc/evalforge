@@ -26,44 +26,95 @@ from loguru import logger
 
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential
+
     HAS_TENACITY = True
 except ImportError:
     HAS_TENACITY = False
+
     def retry(*args, **kwargs):
-        def decorator(fn): return fn
+        def decorator(fn):
+            return fn
+
         return decorator
-    def stop_after_attempt(n): return None
-    def wait_exponential(**kwargs): return None
+
+    def stop_after_attempt(n):
+        return None
+
+    def wait_exponential(**kwargs):
+        return None
+
 
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-VLLM_URLS = os.environ.get("VLLM_URLS", "http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004").split(",")
+VLLM_URLS = os.environ.get(
+    "VLLM_URLS",
+    "http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004",
+).split(",")
 
 # Benchmarks to download — (hf_dataset_id, subset, split, item_limit)
 BENCHMARK_REGISTRY: list[dict[str, Any]] = [
     {
         "name": "mmlu",
         "hf_id": "cais/mmlu",
-        "subsets": ["abstract_algebra", "anatomy", "astronomy", "business_ethics",
-                    "clinical_knowledge", "college_biology", "college_chemistry",
-                    "college_computer_science", "college_mathematics", "college_medicine",
-                    "college_physics", "computer_security", "conceptual_physics",
-                    "econometrics", "electrical_engineering", "elementary_mathematics",
-                    "formal_logic", "global_facts", "high_school_biology",
-                    "high_school_chemistry", "high_school_computer_science",
-                    "high_school_european_history", "high_school_geography",
-                    "high_school_government_and_politics", "high_school_macroeconomics",
-                    "high_school_mathematics", "high_school_microeconomics",
-                    "high_school_physics", "high_school_psychology",
-                    "high_school_statistics", "high_school_us_history",
-                    "high_school_world_history", "human_aging", "human_sexuality",
-                    "international_law", "jurisprudence", "logical_fallacies",
-                    "machine_learning", "management", "marketing", "medical_genetics",
-                    "miscellaneous", "moral_disputes", "moral_scenarios",
-                    "nutrition", "philosophy", "prehistory", "professional_accounting",
-                    "professional_law", "professional_medicine", "professional_psychology",
-                    "public_relations", "security_studies", "sociology",
-                    "us_foreign_policy", "virology", "world_religions"],
+        "subsets": [
+            "abstract_algebra",
+            "anatomy",
+            "astronomy",
+            "business_ethics",
+            "clinical_knowledge",
+            "college_biology",
+            "college_chemistry",
+            "college_computer_science",
+            "college_mathematics",
+            "college_medicine",
+            "college_physics",
+            "computer_security",
+            "conceptual_physics",
+            "econometrics",
+            "electrical_engineering",
+            "elementary_mathematics",
+            "formal_logic",
+            "global_facts",
+            "high_school_biology",
+            "high_school_chemistry",
+            "high_school_computer_science",
+            "high_school_european_history",
+            "high_school_geography",
+            "high_school_government_and_politics",
+            "high_school_macroeconomics",
+            "high_school_mathematics",
+            "high_school_microeconomics",
+            "high_school_physics",
+            "high_school_psychology",
+            "high_school_statistics",
+            "high_school_us_history",
+            "high_school_world_history",
+            "human_aging",
+            "human_sexuality",
+            "international_law",
+            "jurisprudence",
+            "logical_fallacies",
+            "machine_learning",
+            "management",
+            "marketing",
+            "medical_genetics",
+            "miscellaneous",
+            "moral_disputes",
+            "moral_scenarios",
+            "nutrition",
+            "philosophy",
+            "prehistory",
+            "professional_accounting",
+            "professional_law",
+            "professional_medicine",
+            "professional_psychology",
+            "public_relations",
+            "security_studies",
+            "sociology",
+            "us_foreign_policy",
+            "virology",
+            "world_religions",
+        ],
         "split": "test",
         "item_limit": 100,
         "question_field": "question",
@@ -151,19 +202,35 @@ BENCHMARK_REGISTRY: list[dict[str, Any]] = [
     {
         "name": "bbh",
         "hf_id": "lukaemon/bbh",
-        "subsets": ["boolean_expressions", "causal_judgement", "date_understanding",
-                    "disambiguation_qa", "dyck_languages", "formal_fallacies",
-                    "geometric_shapes", "hyperbaton", "logical_deduction_five_objects",
-                    "logical_deduction_seven_objects", "logical_deduction_three_objects",
-                    "movie_recommendation", "multistep_arithmetic_two",
-                    "navigate", "object_counting", "penguins_in_a_table",
-                    "reasoning_about_colored_objects", "ruin_names",
-                    "salient_translation_error_detection", "snarks",
-                    "sports_understanding", "temporal_sequences",
-                    "tracking_shuffled_objects_five_objects",
-                    "tracking_shuffled_objects_seven_objects",
-                    "tracking_shuffled_objects_three_objects",
-                    "web_of_lies", "word_sorting"],
+        "subsets": [
+            "boolean_expressions",
+            "causal_judgement",
+            "date_understanding",
+            "disambiguation_qa",
+            "dyck_languages",
+            "formal_fallacies",
+            "geometric_shapes",
+            "hyperbaton",
+            "logical_deduction_five_objects",
+            "logical_deduction_seven_objects",
+            "logical_deduction_three_objects",
+            "movie_recommendation",
+            "multistep_arithmetic_two",
+            "navigate",
+            "object_counting",
+            "penguins_in_a_table",
+            "reasoning_about_colored_objects",
+            "ruin_names",
+            "salient_translation_error_detection",
+            "snarks",
+            "sports_understanding",
+            "temporal_sequences",
+            "tracking_shuffled_objects_five_objects",
+            "tracking_shuffled_objects_seven_objects",
+            "tracking_shuffled_objects_three_objects",
+            "web_of_lies",
+            "word_sorting",
+        ],
         "split": "test",
         "item_limit": 100,
         "question_field": "input",
@@ -218,7 +285,9 @@ class BenchmarkDownloader:
 
     def run(self, benchmarks: list[str] | None = None) -> dict[str, int]:
         """Download all benchmarks and build contamination catalog. Returns item counts."""
-        target = set(benchmarks) if benchmarks else {b["name"] for b in BENCHMARK_REGISTRY}
+        target = (
+            set(benchmarks) if benchmarks else {b["name"] for b in BENCHMARK_REGISTRY}
+        )
         results: dict[str, int] = {}
         catalog_entries: list[dict] = []
 
@@ -232,7 +301,9 @@ class BenchmarkDownloader:
                 items, catalog = self._download_benchmark(bdef)
                 results[name] = len(items)
                 catalog_entries.extend(catalog)
-                logger.success(f"  {name}: {len(items)} items, {len(catalog)} catalog entries")
+                logger.success(
+                    f"  {name}: {len(items)} items, {len(catalog)} catalog entries"
+                )
             except Exception as exc:
                 logger.error(f"  {name}: failed — {exc}")
                 results[name] = 0
@@ -242,7 +313,9 @@ class BenchmarkDownloader:
             with self.catalog_output.open("w") as fh:
                 for entry in catalog_entries:
                     fh.write(json.dumps(entry) + "\n")
-            logger.info(f"Contamination catalog: {len(catalog_entries)} entries → {self.catalog_output}")
+            logger.info(
+                f"Contamination catalog: {len(catalog_entries)} entries → {self.catalog_output}"
+            )
 
         return results
 
@@ -314,14 +387,16 @@ class BenchmarkDownloader:
                     items_loaded += 1
 
                     # Catalog entry for contamination detection
-                    catalog_entries.append({
-                        "benchmark": bdef["name"],
-                        "subset": subset,
-                        "exact_fingerprint": item["fingerprint"],
-                        "ngram_fingerprints": _ngram_fingerprints(question_text),
-                        "category": category,
-                        "question_preview": question_text[:120],
-                    })
+                    catalog_entries.append(
+                        {
+                            "benchmark": bdef["name"],
+                            "subset": subset,
+                            "exact_fingerprint": item["fingerprint"],
+                            "ngram_fingerprints": _ngram_fingerprints(question_text),
+                            "category": category,
+                            "question_preview": question_text[:120],
+                        }
+                    )
 
                 logger.debug(f"  {bdef['name']}/{subset}: {items_loaded} items")
 
@@ -371,7 +446,7 @@ class ContaminationChecker:
 
     def __init__(self, catalog_path: str | Path) -> None:
         self.catalog_path = Path(catalog_path)
-        self._exact: dict[str, str] = {}   # fingerprint → benchmark
+        self._exact: dict[str, str] = {}  # fingerprint → benchmark
         self._ngrams: dict[str, str] = {}  # ngram_fp → benchmark
         self._loaded = False
 
@@ -379,20 +454,31 @@ class ContaminationChecker:
         if self._loaded:
             return
         if not self.catalog_path.exists():
-            logger.warning(f"Catalog not found: {self.catalog_path} — contamination checking disabled")
+            logger.warning(
+                f"Catalog not found: {self.catalog_path} — contamination checking disabled"
+            )
             self._loaded = True
             return
 
         with self.catalog_path.open() as fh:
             for line in fh:
-                entry = json.loads(line.strip())
-                bench = entry["benchmark"]
-                self._exact[entry["exact_fingerprint"]] = bench
+                line = line.strip()
+                if not line:
+                    continue
+                entry = json.loads(line)
+                bench = entry.get("benchmark", "")
+                if not bench:
+                    continue
+                fp = entry.get("exact_fingerprint", "")
+                if fp:
+                    self._exact[fp] = bench
                 for ng_fp in entry.get("ngram_fingerprints", []):
                     self._ngrams[ng_fp] = bench
 
         self._loaded = True
-        logger.info(f"Loaded contamination catalog: {len(self._exact)} exact, {len(self._ngrams)} ngram entries")
+        logger.info(
+            f"Loaded contamination catalog: {len(self._exact)} exact, {len(self._ngrams)} ngram entries"
+        )
 
     def check(self, question_text: str) -> dict[str, Any]:
         """
@@ -429,7 +515,12 @@ class ContaminationChecker:
                         "confidence": round(hit_ratio, 3),
                     }
 
-        return {"is_contaminated": False, "benchmark": None, "match_type": None, "confidence": 0.0}
+        return {
+            "is_contaminated": False,
+            "benchmark": None,
+            "match_type": None,
+            "confidence": 0.0,
+        }
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
@@ -486,15 +577,21 @@ def discover_hf_benchmarks(output_path: str | Path, max_pages: int = 5) -> int:
         for d in all_datasets
     ]
     output_path.write_text(json.dumps(registry, indent=2))
-    logger.info(f"Discovered {len(registry)} benchmark datasets on HuggingFace Hub → {output_path}")
+    logger.info(
+        f"Discovered {len(registry)} benchmark datasets on HuggingFace Hub → {output_path}"
+    )
     return len(registry)
 
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Download benchmark corpora for EvalForge")
-    parser.add_argument("--output", default="data/raw/benchmarks", help="Output directory")
+    parser = argparse.ArgumentParser(
+        description="Download benchmark corpora for EvalForge"
+    )
+    parser.add_argument(
+        "--output", default="data/raw/benchmarks", help="Output directory"
+    )
     parser.add_argument(
         "--catalog-output",
         default="data/raw/contamination_catalog.jsonl",

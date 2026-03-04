@@ -17,39 +17,45 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import json
 import os
 import threading
-import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any
 
 import anthropic
 from loguru import logger
 
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential
+
     HAS_TENACITY = True
 except ImportError:
     HAS_TENACITY = False
+
     def retry(*args, **kwargs):
-        def decorator(fn): return fn
+        def decorator(fn):
+            return fn
+
         return decorator
-    def stop_after_attempt(n): return None
-    def wait_exponential(**kwargs): return None
+
+    def stop_after_attempt(n):
+        return None
+
+    def wait_exponential(**kwargs):
+        return None
+
 
 from synthesis.prompts import (
     AUDIT_PAIR_PROMPT,
     GOODHART_PATTERN_PROMPT,
-    IRT_CALIBRATION_PROMPT,
     ITEM_GENERATION_PROMPT,
     SHORTCUT_DETECTION_PROMPT,
     SYSTEM_AUDIT,
     SYSTEM_GOODHART,
-    SYSTEM_IRT,
     SYSTEM_ITEM_GENERATOR,
     SYSTEM_SHORTCUT_DETECTOR,
 )
@@ -91,7 +97,10 @@ class BulkSynthesizer:
             import openai
 
             self.vllm_clients = [
-                openai.OpenAI(base_url=f"{url}/v1", api_key=os.environ.get("VLLM_API_KEY", "dummy"))
+                openai.OpenAI(
+                    base_url=f"{url}/v1",
+                    api_key=os.environ.get("VLLM_API_KEY", "dummy"),
+                )
                 for url in self.vllm_urls
             ]
             self._client_idx = 0
@@ -137,7 +146,7 @@ class BulkSynthesizer:
         # Strip markdown code fences if present
         if text.startswith("```"):
             lines = text.split("\n")
-            text = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+            text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
         try:
             return json.loads(text)
         except json.JSONDecodeError:
@@ -158,7 +167,9 @@ class BulkSynthesizer:
             {
                 "question": paper.get("title", "")[:200],
                 "abstract_excerpt": paper.get("abstract", "")[:300],
-                "reviews_excerpt": [r["text"][:200] for r in paper.get("reviews", [])[:2]],
+                "reviews_excerpt": [
+                    r["text"][:200] for r in paper.get("reviews", [])[:2]
+                ],
             },
             indent=2,
         )
@@ -223,7 +234,9 @@ class BulkSynthesizer:
             ],
         }
 
-    def _make_item_gen_pair(self, construct: str, difficulty_range: tuple) -> dict | None:
+    def _make_item_gen_pair(
+        self, construct: str, difficulty_range: tuple
+    ) -> dict | None:
         """Generate a novel item generation pair."""
         user = ITEM_GENERATION_PROMPT.format(
             n_items=5,
@@ -263,9 +276,13 @@ class BulkSynthesizer:
 
         # Stream 1: Audit pairs from OpenReview papers
         openreview_dir = self.raw_dir / "openreview"
-        paper_files = list(openreview_dir.glob("*.json")) if openreview_dir.exists() else []
+        paper_files = (
+            list(openreview_dir.glob("*.json")) if openreview_dir.exists() else []
+        )
         if paper_files:
-            logger.info(f"Stream 1: Generating audit pairs from {len(paper_files):,} papers...")
+            logger.info(
+                f"Stream 1: Generating audit pairs from {len(paper_files):,} papers..."
+            )
             n = self._synthesize_stream(
                 items=paper_files,
                 fn=lambda p: self._make_audit_pair(json.loads(p.read_text())),
@@ -276,9 +293,13 @@ class BulkSynthesizer:
 
         # Stream 2: Shortcut pairs from benchmark items
         bench_dir = self.raw_dir / "benchmarks"
-        bench_files = list(bench_dir.glob("*/items.jsonl")) if bench_dir.exists() else []
+        bench_files = (
+            list(bench_dir.glob("*/items.jsonl")) if bench_dir.exists() else []
+        )
         if bench_files:
-            logger.info(f"Stream 2: Generating shortcut pairs from {len(bench_files)} benchmarks...")
+            logger.info(
+                f"Stream 2: Generating shortcut pairs from {len(bench_files)} benchmarks..."
+            )
             all_items: list[list[dict]] = []
             for f in bench_files:
                 chunk = [json.loads(l) for l in f.read_text().splitlines() if l.strip()]
@@ -297,7 +318,9 @@ class BulkSynthesizer:
         # Stream 3: Goodhart pattern pairs (synthetic case studies)
         goodhart_cases = self._load_goodhart_cases()
         if goodhart_cases:
-            logger.info(f"Stream 3: Generating {len(goodhart_cases)} Goodhart pattern pairs...")
+            logger.info(
+                f"Stream 3: Generating {len(goodhart_cases)} Goodhart pattern pairs..."
+            )
             n = self._synthesize_stream(
                 items=goodhart_cases,
                 fn=lambda c: self._make_goodhart_pair(c["case_study"], c["domain"]),
@@ -309,7 +332,9 @@ class BulkSynthesizer:
         # Stream 4: Item generation pairs
         constructs = self._load_construct_list()
         if constructs:
-            logger.info(f"Stream 4: Generating item pairs for {len(constructs)} constructs...")
+            logger.info(
+                f"Stream 4: Generating item pairs for {len(constructs)} constructs..."
+            )
             items_with_ranges = [
                 (c, (round(-2.0 + i * 0.1, 1), round(-1.0 + i * 0.1, 1)))
                 for i, c in enumerate(constructs)
@@ -322,9 +347,7 @@ class BulkSynthesizer:
             )
             stats["item_gen_pairs"] = n
 
-        stats["total_pairs"] = sum(
-            v for k, v in stats.items() if k != "total_pairs"
-        )
+        stats["total_pairs"] = sum(v for k, v in stats.items() if k != "total_pairs")
         logger.info(f"Synthesis complete. Total pairs: {stats['total_pairs']:,}")
         return stats
 

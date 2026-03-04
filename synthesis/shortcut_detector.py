@@ -18,18 +18,58 @@ Detectable patterns:
 from __future__ import annotations
 
 import re
-import string
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
 NEGATION_WORDS = {"not", "never", "no", "none", "neither", "nor", "nothing", "nowhere"}
 STOP_WORDS = {
-    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "to", "of", "in", "for",
-    "on", "with", "at", "by", "from", "as", "into", "through", "during",
-    "and", "or", "but", "if", "then", "that", "this", "it", "its",
+    "a",
+    "an",
+    "the",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "shall",
+    "can",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "at",
+    "by",
+    "from",
+    "as",
+    "into",
+    "through",
+    "during",
+    "and",
+    "or",
+    "but",
+    "if",
+    "then",
+    "that",
+    "this",
+    "it",
+    "its",
 }
 
 
@@ -54,7 +94,9 @@ class ShortcutReport:
             }
         )
         # Degrade quality score
-        self.overall_quality_score = max(0.0, self.overall_quality_score - severity * 0.3)
+        self.overall_quality_score = max(
+            0.0, self.overall_quality_score - severity * 0.3
+        )
         if self.overall_quality_score < 0.4:
             self.recommendation = "REPLACE"
         elif self.overall_quality_score < 0.7:
@@ -138,7 +180,8 @@ class ShortcutDetector:
         shortcut_counts = Counter(s["pattern"] for s in all_shortcuts)
         n_items = len(items)
         affected_fractions = {
-            pattern: count / n_items for pattern, count in shortcut_counts.items()
+            pattern: count / max(1, n_items)
+            for pattern, count in shortcut_counts.items()
         }
 
         return {
@@ -146,12 +189,12 @@ class ShortcutDetector:
             "position_bias_score": round(position_bias_score, 3),
             "position_distribution": dict(answer_positions),
             "item_level_shortcuts": affected_fractions,
-            "flagged_item_fraction": sum(
-                1 for r in item_reports if r.shortcuts
-            ) / max(1, n_items),
+            "flagged_item_fraction": sum(1 for r in item_reports if r.shortcuts)
+            / max(1, n_items),
             "replace_recommended_fraction": sum(
                 1 for r in item_reports if r.recommendation == "REPLACE"
-            ) / max(1, n_items),
+            )
+            / max(1, n_items),
         }
 
     def _check_length_bias(
@@ -161,7 +204,9 @@ class ShortcutDetector:
         if not distractors:
             return
         correct_len = len(correct.split())
-        avg_distractor = sum(len(v.split()) for v in distractors.values()) / len(distractors)
+        avg_distractor = sum(len(v.split()) for v in distractors.values()) / len(
+            distractors
+        )
         if avg_distractor > 0 and correct_len / avg_distractor >= 2.0:
             severity = min(1.0, (correct_len / avg_distractor - 2.0) * 0.5 + 0.5)
             report.add_shortcut(
@@ -175,6 +220,7 @@ class ShortcutDetector:
         self, report: ShortcutReport, question: str, correct: str
     ) -> None:
         """Flag if content words in correct answer are all present in the question."""
+
         def content_words(text: str) -> set[str]:
             words = re.sub(r"[^\w\s]", "", text.lower()).split()
             return {w for w in words if w not in STOP_WORDS and len(w) > 2}
@@ -225,7 +271,7 @@ class ShortcutDetector:
                     pattern="negation_artifact",
                     severity=0.7,
                     description="Question contains negation; correct/distractor differ only by negation word",
-                    evidence=f"Q negation detected; choice similarity after stripping negation > 0.8",
+                    evidence="Q negation detected; choice similarity after stripping negation > 0.8",
                 )
                 return
 
@@ -255,7 +301,7 @@ class ShortcutDetector:
                 pattern="answer_choice_asymmetry",
                 severity=0.4,
                 description="Extreme length variance across answer choices",
-                evidence=f"max={max_len} tokens, min={min_len} tokens (ratio {max_len/min_len:.1f}x)",
+                evidence=f"max={max_len} tokens, min={min_len} tokens (ratio {max_len / min_len:.1f}x)",
             )
 
 

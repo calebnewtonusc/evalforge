@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 from scipy.optimize import minimize
@@ -27,14 +26,17 @@ from scipy.stats import pearsonr
 # Data types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ItemParameters:
     """IRT parameters for a single benchmark item."""
 
     item_id: str
-    discrimination_a: float   # Discrimination — typically 0.5–3.0
-    difficulty_b: float       # Difficulty on latent ability scale (theta) — typically -3 to +3
-    guessing_c: float = 0.0   # Guessing parameter — typically 0.0–0.33
+    discrimination_a: float  # Discrimination — typically 0.5–3.0
+    difficulty_b: (
+        float  # Difficulty on latent ability scale (theta) — typically -3 to +3
+    )
+    guessing_c: float = 0.0  # Guessing parameter — typically 0.0–0.33
     quality_flags: list[str] = field(default_factory=list)
     information_peak_theta: float = 0.0  # Theta at which item provides max info
 
@@ -50,9 +52,9 @@ class TestInformation:
     """Summary statistics for the full test."""
 
     n_items: int
-    reliability_estimate: float          # Coefficient omega / alpha estimate
-    peak_theta: float                    # Theta at which test provides max info
-    effective_n_items: int               # Items contributing > 10% of max info
+    reliability_estimate: float  # Coefficient omega / alpha estimate
+    peak_theta: float  # Theta at which test provides max info
+    effective_n_items: int  # Items contributing > 10% of max info
     standard_error_at_theta: dict[float, float] = field(default_factory=dict)
 
 
@@ -69,6 +71,7 @@ class IRTCalibrationResult:
 # ---------------------------------------------------------------------------
 # Core IRT math
 # ---------------------------------------------------------------------------
+
 
 def p_correct_1pl(theta: float, b: float) -> float:
     """1PL (Rasch) probability of correct response."""
@@ -97,7 +100,7 @@ def item_information_3pl(theta: float, a: float, b: float, c: float) -> float:
     p_star = p_correct_2pl(theta, a, b)  # 2PL component
     p = p_correct_3pl(theta, a, b, c)
     q = 1.0 - p
-    return (a**2 * q * (p_star**2)) / (p * (1.0 - c)**2)
+    return (a**2 * q * (p_star**2)) / (p * (1.0 - c) ** 2)
 
 
 def test_information(
@@ -111,7 +114,9 @@ def test_information(
         if model == "2pl":
             total += item_information_2pl(theta, ip.discrimination_a, ip.difficulty_b)
         elif model == "3pl":
-            total += item_information_3pl(theta, ip.discrimination_a, ip.difficulty_b, ip.guessing_c)
+            total += item_information_3pl(
+                theta, ip.discrimination_a, ip.difficulty_b, ip.guessing_c
+            )
     return total
 
 
@@ -124,6 +129,7 @@ def standard_error(theta: float, item_params: list[ItemParameters]) -> float:
 # ---------------------------------------------------------------------------
 # Parameter estimation
 # ---------------------------------------------------------------------------
+
 
 class IRTCalibrator:
     """
@@ -141,7 +147,8 @@ class IRTCalibrator:
         n_ability_levels: int = 41,
         theta_range: tuple[float, float] = (-4.0, 4.0),
     ) -> None:
-        assert model in ("1pl", "2pl", "3pl"), "model must be '1pl', '2pl', or '3pl'"
+        if model not in ("1pl", "2pl", "3pl"):
+            raise ValueError(f"model must be '1pl', '2pl', or '3pl'; got {model!r}")
         self.model = model
         self.theta_grid = np.linspace(theta_range[0], theta_range[1], n_ability_levels)
 
@@ -162,10 +169,11 @@ class IRTCalibrator:
         Returns:
             IRTCalibrationResult with item and ability estimates.
         """
-        assert response_matrix.shape == (len(model_names), len(item_ids)), (
-            f"Matrix shape {response_matrix.shape} doesn't match "
-            f"({len(model_names)}, {len(item_ids)})"
-        )
+        if response_matrix.shape != (len(model_names), len(item_ids)):
+            raise ValueError(
+                f"Matrix shape {response_matrix.shape} doesn't match "
+                f"({len(model_names)}, {len(item_ids)})"
+            )
 
         # Step 1: Estimate model abilities using raw score → theta mapping
         raw_scores = response_matrix.mean(axis=1)
@@ -185,7 +193,9 @@ class IRTCalibrator:
 
         # Step 3: Compute test information and reliability
         theta_test_grid = np.linspace(-3, 3, 61)
-        test_info_values = [test_information(th, item_params, self.model) for th in theta_test_grid]
+        test_info_values = [
+            test_information(th, item_params, self.model) for th in theta_test_grid
+        ]
         peak_theta = float(theta_test_grid[int(np.argmax(test_info_values))])
         # Count grid points where information exceeds 10% of peak — this measures
         # the breadth of the theta range that the test covers, not the number of items.
@@ -196,8 +206,12 @@ class IRTCalibrator:
         # Reliability via Spearman-Brown from median SEM.
         # Correct formula: r = 1 - SEM^2 / Var(theta). Without dividing by the
         # observed theta variance, the formula is not scale-invariant.
-        median_sem = float(np.median([standard_error(th, item_params) for th in theta_test_grid]))
-        theta_variance = float(np.var(theta_estimates)) if len(theta_estimates) > 1 else 1.0
+        median_sem = float(
+            np.median([standard_error(th, item_params) for th in theta_test_grid])
+        )
+        theta_variance = (
+            float(np.var(theta_estimates)) if len(theta_estimates) > 1 else 1.0
+        )
         reliability = max(0.0, 1.0 - median_sem**2 / max(theta_variance, 1e-8))
 
         test_info = TestInformation(
@@ -220,7 +234,9 @@ class IRTCalibrator:
 
         return IRTCalibrationResult(
             item_parameters=item_params,
-            model_ability_estimates={k: round(v, 3) for k, v in ability_estimates.items()},
+            model_ability_estimates={
+                k: round(v, 3) for k, v in ability_estimates.items()
+            },
             test_information=test_info,
             model_fit=model_fit,
         )
@@ -282,9 +298,16 @@ class IRTCalibrator:
             flags.append("OK")
 
         # Compute information peak
-        info_peak_theta = float(self.theta_grid[
-            np.argmax([item_information_2pl(th, float(a_est), float(b_est)) for th in self.theta_grid])
-        ])
+        info_peak_theta = float(
+            self.theta_grid[
+                np.argmax(
+                    [
+                        item_information_2pl(th, float(a_est), float(b_est))
+                        for th in self.theta_grid
+                    ]
+                )
+            ]
+        )
 
         return ItemParameters(
             item_id=item_id,
@@ -307,9 +330,11 @@ class IRTCalibrator:
         # An item is flagged if ANY of its quality_flags is not "OK".
         # Checking only flags[0] misses items with multiple non-OK flags.
         flagged = [
-            ip for ip in result.item_parameters
+            ip
+            for ip in result.item_parameters
             if ip.quality_flags and not all(flag == "OK" for flag in ip.quality_flags)
         ]
+
         # Sort: low discrimination first, then extremes.
         # Use the first non-OK flag for priority ordering.
         def _first_bad_flag(ip):
@@ -317,6 +342,7 @@ class IRTCalibrator:
                 if f != "OK":
                     return f
             return "OK"
+
         priority = {"LOW_DISCRIMINATION": 0, "FLOOR": 1, "CEILING": 1}
         flagged.sort(key=lambda ip: priority.get(_first_bad_flag(ip), 2))
         return [ip.item_id for ip in flagged[:max_to_replace]]
