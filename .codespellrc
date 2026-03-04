@@ -1,0 +1,6 @@
+[codespell]
+# LSAT = Law School Admission Test (domain term used in MODEL_CARD.md)
+# LAMA = Language Model Analysis (benchmark name from Petroni et al.)
+# ans = legitimate Python variable name used as loop variable
+ignore-words-list = lsat,lama,ans
+skip = *.pyc,*.json,*.lock,__pycache__,.git,*.yaml,*.yml,node_modules

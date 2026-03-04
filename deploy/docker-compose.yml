@@ -19,6 +19,12 @@ services:
       - ./model_cache:/models:ro
       - evalforge_data:/app/data
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/tmp
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 30s
@@ -38,6 +44,11 @@ services:
       --api-key ${VLLM_API_KEY}
     volumes:
       - ./model_cache:/models:ro
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     deploy:
       resources:
         reservations:
