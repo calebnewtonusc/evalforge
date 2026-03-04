@@ -195,7 +195,7 @@ def _verify_math_answer(
             if val.is_number:
                 return True, f"sympy verified: {val}"
         except Exception:
-            pass
+            pass  # intentional: skip non-parseable expressions
 
         # If explanation contains a final numeric answer, check consistency
         nums_in_explanation = re.findall(r"\b\d+(?:\.\d+)?\b", explanation)

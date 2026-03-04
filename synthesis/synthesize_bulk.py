@@ -302,7 +302,7 @@ class BulkSynthesizer:
             )
             all_items: list[list[dict]] = []
             for f in bench_files:
-                chunk = [json.loads(l) for l in f.read_text().splitlines() if l.strip()]
+                chunk = [json.loads(line) for line in f.read_text().splitlines() if line.strip()]
                 # Create batches of 10 items
                 for i in range(0, len(chunk), 10):
                     all_items.append(chunk[i : i + 10])

@@ -270,7 +270,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     items = [
-        json.loads(l) for l in Path(args.input).read_text().splitlines() if l.strip()
+        json.loads(line) for line in Path(args.input).read_text().splitlines() if line.strip()
     ]
     prober = ContaminationProber()
     contaminated = prober.create_contaminated_dataset(

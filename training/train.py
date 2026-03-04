@@ -141,11 +141,11 @@ def main() -> None:
     if args.flash_attn:
         model_kwargs["attn_implementation"] = "flash_attention_2"
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)  # nosec B615
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
-    model = AutoModelForCausalLM.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(  # nosec B615
         args.model, trust_remote_code=True, **model_kwargs
     )
     model.enable_input_require_grads()

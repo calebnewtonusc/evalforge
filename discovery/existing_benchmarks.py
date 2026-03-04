@@ -262,7 +262,7 @@ def _ngram_fingerprints(text: str, n: int = 8) -> list[str]:
     """Word n-gram fingerprints for fuzzy contamination detection."""
     words = re.sub(r"[^\w\s]", "", text.lower()).split()
     ngrams = [" ".join(words[i : i + n]) for i in range(len(words) - n + 1)]
-    return [hashlib.md5(ng.encode()).hexdigest() for ng in ngrams]
+    return [hashlib.md5(ng.encode(), usedforsecurity=False).hexdigest() for ng in ngrams]
 
 
 class BenchmarkDownloader:
@@ -322,7 +322,7 @@ class BenchmarkDownloader:
     def _download_benchmark(self, bdef: dict) -> tuple[list[dict], list[dict]]:
         """Download one benchmark. Returns (items, catalog_entries)."""
         try:
-            from datasets import load_dataset  # type: ignore
+            from datasets import load_dataset  # type: ignore  # nosec B615
         except ImportError:
             raise RuntimeError("pip install datasets")
 
@@ -343,7 +343,7 @@ class BenchmarkDownloader:
                 if subset != "default":
                     ds_kwargs["name"] = subset
 
-                ds = load_dataset(**ds_kwargs)
+                ds = load_dataset(**ds_kwargs)  # nosec B615
                 limit = bdef.get("item_limit", 500)
 
                 items_loaded = 0

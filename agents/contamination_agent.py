@@ -197,7 +197,7 @@ class ContaminationAgent:
         # Real n-gram index lookup
         matches = []
         for ngram in item_ngrams:
-            h = hashlib.md5(ngram.encode()).hexdigest()[:8]
+            h = hashlib.md5(ngram.encode(), usedforsecurity=False).hexdigest()[:8]
             if h in self.ngram_index:
                 matches.append(
                     {"ngram": ngram, "sources": list(self.ngram_index[h])[:3]}

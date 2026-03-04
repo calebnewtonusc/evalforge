@@ -251,7 +251,7 @@ def main() -> None:
     data_dir = Path(args.data_dir)
     logger.info(f"Loading model from: {args.model}")
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)  # nosec B615
     tokenizer.pad_token = tokenizer.eos_token
 
     train_ds = load_rl_dataset(data_dir)

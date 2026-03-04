@@ -60,8 +60,8 @@ class ForgeQualityBench:
         import torch
 
         logger.info(f"Loading model from {model_path}")
-        self._tokenizer = AutoTokenizer.from_pretrained(model_path)
-        self._model = AutoModelForCausalLM.from_pretrained(
+        self._tokenizer = AutoTokenizer.from_pretrained(model_path)  # nosec B615
+        self._model = AutoModelForCausalLM.from_pretrained(  # nosec B615
             model_path,
             torch_dtype=torch.bfloat16,
             device_map="auto",

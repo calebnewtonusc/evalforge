@@ -337,7 +337,7 @@ def print_stats() -> None:
     processed_files = list(PROCESSED_DIR.glob("*.jsonl"))
     total_pairs = 0
     for f in processed_files:
-        lines = [l for l in f.read_text().splitlines() if l.strip()]
+        lines = [line for line in f.read_text().splitlines() if line.strip()]
         total_pairs += len(lines)
     logger.info(f"Processed JSONL files:      {len(processed_files)}")
     logger.info(f"Total pairs (pre-dedup):    {total_pairs:,}")
@@ -345,7 +345,7 @@ def print_stats() -> None:
     for split in ["train", "val", "test"]:
         p = TRAIN_DIR / f"evalforge_{split}.jsonl"
         if p.exists():
-            n = len([l for l in p.read_text().splitlines() if l.strip()])
+            n = len([line for line in p.read_text().splitlines() if line.strip()])
             logger.info(f"  {split} split:             {n:,}")
 
 

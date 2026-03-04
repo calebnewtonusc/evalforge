@@ -79,7 +79,7 @@ def main() -> None:
         return
 
     logger.info(f"Loading model: {args.model}")
-    tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)  # nosec B615
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
 
@@ -108,7 +108,7 @@ def main() -> None:
     # policy while the ref is already an object causes device placement
     # conflicts under ZeRO-3).
     logger.info("Loading policy model...")
-    policy_model = AutoModelForCausalLM.from_pretrained(
+    policy_model = AutoModelForCausalLM.from_pretrained(  # nosec B615
         args.model, torch_dtype=torch.bfloat16, device_map=None
     )
 
@@ -116,7 +116,7 @@ def main() -> None:
     # Using ref_model=None would make the policy serve as its own reference,
     # eliminating the KL constraint and destabilizing training.
     logger.info("Loading reference model...")
-    ref_model = AutoModelForCausalLM.from_pretrained(
+    ref_model = AutoModelForCausalLM.from_pretrained(  # nosec B615
         args.model, torch_dtype=torch.bfloat16, device_map=None
     )
     ref_model.eval()

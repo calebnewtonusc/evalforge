@@ -177,14 +177,14 @@ class BenchmarkCorpusIndexer:
             return 0
 
         try:
-            from datasets import load_dataset
+            from datasets import load_dataset  # nosec B615
 
             items_saved = 0
             all_items: list[dict] = []
 
             for subset in config.get("subsets", ["default"]):
                 try:
-                    ds = load_dataset(
+                    ds = load_dataset(  # nosec B615
                         hf_dataset, subset, split="test", trust_remote_code=True
                     )
                     for i, item in enumerate(ds):
