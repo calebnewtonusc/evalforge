@@ -1,0 +1,68 @@
+version: "3.9"
+
+services:
+  evalforge-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: evalforge:latest
+    container_name: evalforge-api
+    ports:
+      - "9000:9000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - VLLM_API_KEY=${VLLM_API_KEY}
+      - VLLM_URLS=${VLLM_URLS:-http://vllm-server:8001}
+      - EVALFORGE_MODEL_PATH=/models/evalforge-final
+    volumes:
+      - ./model_cache:/models:ro
+      - evalforge_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  vllm-server:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-server
+    ports:
+      - "8001:8001"
+    command: >
+      --model /models/evalforge-final
+      --port 8001
+      --gpu-memory-utilization 0.9
+      --tensor-parallel-size 1
+      --api-key ${VLLM_API_KEY}
+    volumes:
+      - ./model_cache:/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  correlation-tracker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: correlation-tracker
+    command: python -c "
+      from agents.correlation_tracker_agent import CorrelationTrackerAgent;
+      import time;
+      tracker = CorrelationTrackerAgent();
+      while True:
+          alerts = tracker.get_all_alerts();
+          print(f'Active alerts: {len(alerts)}');
+          time.sleep(3600)
+      "
+    volumes:
+      - evalforge_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  evalforge_data:

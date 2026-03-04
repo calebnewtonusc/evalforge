@@ -1,0 +1,76 @@
+# EvalForge dependencies
+# Training: 18× A6000 with DeepSpeed ZeRO-3
+# Base model: Qwen2.5-7B-Coder-Instruct
+
+# Core ML
+torch>=2.3.0
+transformers>=4.45.0
+peft>=0.11.0
+trl>=0.9.0
+deepspeed>=0.14.0
+accelerate>=0.30.0
+datasets>=2.20.0
+sentencepiece>=0.2.0
+tokenizers>=0.19.0
+
+# Inference serving
+vllm>=0.4.0
+
+# Anthropic API
+anthropic>=0.28.0
+
+# Evaluation / numerics
+numpy>=1.26.0
+scipy>=1.12.0
+scikit-learn>=1.4.0
+pandas>=2.2.0
+statsmodels>=0.14.0
+sympy>=1.12.0
+
+# IRT models
+pyirt>=0.3.0
+
+# Text similarity / contamination detection
+datasketch>=1.6.5           # MinHash LSH
+sentence-transformers>=2.7.0  # embedding-based dedup
+nltk>=3.8.0
+
+# AST and code analysis
+tree-sitter>=0.21.0
+
+# OpenReview / web crawling
+openreview-py>=1.14.0
+requests>=2.31.0
+aiohttp>=3.9.0
+aiofiles>=23.2.1
+beautifulsoup4>=4.12.0
+lxml>=5.2.0
+httpx>=0.27.0
+
+# Logging and config
+loguru>=0.7.0
+pydantic>=2.6.0
+python-dotenv>=1.0.1
+omegaconf>=2.3.0
+rich>=13.7.0
+tqdm>=4.66.0
+
+# Experiment tracking
+wandb>=0.16.6
+
+# API server
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+
+# Testing
+pytest>=8.1.0
+pytest-asyncio>=0.23.5
+
+# Utilities
+typer>=0.12.0
+orjson>=3.10.0
+tenacity>=8.2.3
+jsonlines>=4.0.0
+PyYAML>=6.0.1
+cryptography>=42.0.0       # for EvalCertificate signing (v3)
+openai>=1.20.0             # vLLM OpenAI-compatible API client

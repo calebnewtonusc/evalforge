@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Data
+data/raw/
+data/processed/
+data/train/
+data/community/
+*.jsonl
+*.json
+!data/.gitkeep
+!discovery/benchmark_corpus.py
+
+# Model checkpoints (large files)
+checkpoints/
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# Logs
+*.log
+logs/
+wandb/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# DeepSpeed
+zero_to_fp32.py
+latest
+
+# Results
+results/
+*.csv
+*.parquet

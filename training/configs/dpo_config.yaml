@@ -1,0 +1,35 @@
+# EvalForge DPO Training Configuration
+
+model:
+  name: checkpoints/evalforge-rl  # Start from RL checkpoint
+  torch_dtype: bfloat16
+
+dpo:
+  beta: 0.1                   # Temperature parameter
+  loss_type: sigmoid          # sigmoid (standard DPO) or ipo
+  max_length: 4096
+  max_prompt_length: 2048
+
+training:
+  num_train_epochs: 1
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 4
+  learning_rate: 5.0e-7
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.03
+  bf16: true
+
+data:
+  dpo_file: data/train/dpo_pairs.jsonl
+
+checkpointing:
+  output_dir: checkpoints/evalforge-final
+  save_strategy: epoch
+  save_total_limit: 2
+
+logging:
+  logging_steps: 10
+  report_to: wandb
+  run_name: evalforge-dpo-v1
+
+deepspeed: training/configs/deepspeed_zero3.json
